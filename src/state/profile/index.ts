@@ -1,0 +1,6 @@
+export * from './types'
+export { profileReducer } from './reducer'
+export { getProfile, getProfileSaga } from './getProfile'
+export { updateProfile, setProfile, setSaving } from './updateProfile'
+export { followProfile, unfollowProfile, followProfileSaga, unfollowProfileSaga } from './followProfile'
+export { profileSaga } from './profileSaga'
