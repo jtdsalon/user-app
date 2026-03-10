@@ -1,0 +1,8 @@
+export * from './types'
+export { salonReducer } from './reducer'
+export { getSalons, getSalonsSaga } from './getSalons'
+export { getSalonCategories, getSalonCategoriesSaga } from './getSalonCategories'
+export { getSalon, getSalonSaga } from './getSalon'
+export { getSalonsByCategory, getSalonsByCategorySaga } from './getSalonsByCategory'
+export { getSalonDetail, getSalonDetailSaga } from './getSalonDetail'
+export { salonSaga } from './salonSaga'
