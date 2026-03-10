@@ -1,0 +1,53 @@
+{
+  "name": "user-app",
+  "version": "1.0.0",
+  "description": "ESM-based React app with MUI, Redux, and Redux Saga",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "qa": "vite --host --mode qa",
+    "prod": "vite --host --mode production",
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "build:qa": "vite build --mode qa",
+    "build:prod": "vite build --mode production",
+    "preview": "vite preview",
+    "start": "vite",
+    "env:branch": "node scripts/env-from-branch.js"
+  },
+  "keywords": [
+    "react",
+    "mui",
+    "redux",
+    "redux-saga"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@google/genai": "^1.38.0",
+    "@mui/material": "^6.4.4",
+    "@tanstack/react-virtual": "^3.13.18",
+    "axios": "^1.13.2",
+    "heic2any": "0.0.4",
+    "lucide-react": "^0.475.0",
+    "motion": "^12.34.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.13.0",
+    "redux": "^5.0.1",
+    "redux-saga": "^1.4.2",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^5.0.8"
+  }
+}
