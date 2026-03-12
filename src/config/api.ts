@@ -58,13 +58,25 @@ function createApiConfig() {
   let baseApiUrl = validateAndNormalizeBaseUrl(rawBase)
   const apiKey = (env.VITE_APP_API_KEY as string | undefined)?.trim() ?? ''
   const appMode = (env.MODE as string) ?? 'development'
-  // Development-only fallback when env is missing so API calls don't hit the app origin (e.g. 5174)
-  if (!baseApiUrl && appMode === 'development') {
-    baseApiUrl = validateAndNormalizeBaseUrl('http://localhost:3000/api') || ''
-    if (typeof console !== 'undefined' && console.warn) {
-      console.warn(
-        '[config/api] VITE_APP_BASE_URL is not set. Using fallback for development. Set VITE_APP_BASE_URL in .env or .env.development and restart the dev server.'
-      )
+  // Fallback when VITE_APP_BASE_URL is missing
+  if (!baseApiUrl) {
+    if (appMode === 'development') {
+      baseApiUrl = validateAndNormalizeBaseUrl('http://localhost:3000/api') || ''
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn(
+          '[config/api] VITE_APP_BASE_URL is not set. Using fallback for development. Set VITE_APP_BASE_URL in .env or .env.development and restart the dev server.'
+        )
+      }
+    } else if (appMode === 'qa' || appMode === 'production') {
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      baseApiUrl = origin ? `${origin.replace(/\/$/, '')}/api` : ''
+    }
+  }
+  // If app is served from QA/prod host but build had localhost, use current origin so API calls hit the same host
+  if (typeof window !== 'undefined' && baseApiUrl && (baseApiUrl.includes('localhost') || baseApiUrl.includes('127.0.0.1'))) {
+    const origin = window.location.origin
+    if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      baseApiUrl = `${origin.replace(/\/$/, '')}/api`
     }
   }
 
