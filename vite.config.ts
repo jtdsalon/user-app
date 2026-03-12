@@ -49,7 +49,7 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 5174,
     strictPort: true,
-    open: true,
+    open: false, // avoid spawn xdg-open ENOENT on headless/remote (e.g. QA)
   },
   }
 })
