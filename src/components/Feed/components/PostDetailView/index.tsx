@@ -12,7 +12,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
-import { FeedItem } from '@/components/Feed/FeedItem';
+import { FeedItem } from '@/components/Feed';
 import type { FeedPost } from '@/components/Feed/types';
 import { MainLayout } from '@/components/common/layouts/MainLayout';
 import { useAuth } from '@/components/Auth/AuthContext';

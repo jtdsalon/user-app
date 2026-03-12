@@ -18,6 +18,7 @@ import {
   AUTH_SIGNUP_URL,
   AUTH_LOGIN_URL,
   LOGOUT_URL,
+  FORGOT_PASSWORD_URL,
 } from './endPoints'
 
 export interface UserProfileResponse {
@@ -228,5 +229,14 @@ export function loginApi(credentials: {
     method: HTTP_METHOD.POST,
     url: AUTH_LOGIN_URL,
     data: credentials,
+  })
+}
+
+// Forgot password – send reset link to email (backend supports email only)
+export function forgotPasswordApi(email: string): Promise<AxiosResponse<{ ok?: boolean; message?: string }>> {
+  return networkClient().request({
+    method: HTTP_METHOD.POST,
+    url: FORGOT_PASSWORD_URL,
+    data: { email },
   })
 }

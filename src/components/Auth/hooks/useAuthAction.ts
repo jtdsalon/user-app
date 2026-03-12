@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext'
 import { AUTH_STRINGS } from '../properties'
+import { forgotPasswordApi } from '@services/api/userService'
 
 export type GenderOption = 'ladies' | 'men' | 'all'
 
@@ -145,9 +146,22 @@ export const useAuthAction = (tab: number, setScreen: (s: AuthScreen) => void) =
       return
     }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1500))
-    setLoading(false)
-    setScreen('reset-sent')
+    setErrors({})
+    try {
+      const email = isEmail(formData.contact) ? formData.contact : undefined
+      if (!email) {
+        setErrors({ contact: 'Password reset is available by email. Please enter your email address.' })
+        setLoading(false)
+        return
+      }
+      await forgotPasswordApi(email)
+      setScreen('reset-sent')
+    } catch (err: any) {
+      const msg = getFriendlyError(err)
+      setErrors({ contact: msg })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return {

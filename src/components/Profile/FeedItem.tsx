@@ -19,6 +19,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { FeedPost, UserProfile } from './types';
+import { getFullImageUrl } from '@/lib/util/imageUrl';
 
 interface FeedItemProps {
   post: FeedPost;
@@ -118,7 +119,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
       {/* Image */}
       <Box
         component="img"
-        src={post.image}
+        src={getFullImageUrl(post.image) || post.image}
         sx={{
           width: '100%',
           height: 'auto',

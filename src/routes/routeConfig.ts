@@ -1,3 +1,6 @@
+/** Base path for the app (must match Vite base in vite.config). No trailing slash. */
+export const BASE_PATH = (import.meta.env.BASE_URL ?? '/user-app/').replace(/\/+$/, '') || ''
+
 /** Canonical paths for user app. Use these for navigation. */
 export const ROUTES = {
   LOGIN: '/login',

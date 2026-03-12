@@ -251,6 +251,7 @@ export async function createPostWithUploads(
     image_before_url: imageBeforeUrl,
     is_transformation: payload.is_transformation,
     salon_id: payload.salon_id,
+    parent_post_id: payload.parent_post_id,
   })
 }
 

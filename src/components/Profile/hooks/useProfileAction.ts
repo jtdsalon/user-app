@@ -57,26 +57,42 @@ export function useProfileAction() {
           const uploadRes = await uploadPostImageApi(file)
           avatarUrl = (uploadRes?.data as any)?.data?.url || (uploadRes?.data as any)?.url
         }
+        const avatarForApi =
+          avatarUrl && typeof avatarUrl === 'string' && avatarUrl.startsWith('http')
+            ? (() => {
+                try {
+                  return new URL(avatarUrl).pathname
+                } catch {
+                  return avatarUrl
+                }
+              })()
+            : avatarUrl
         const rawUsername = updated.handle?.replace(/^@/, '').trim()
         const payload: any = {
           name: updated.name,
-          avatar: avatarUrl || undefined,
+          avatar: avatarForApi || undefined,
         }
         if (rawUsername && rawUsername.toLowerCase() !== 'user') {
           payload.username = rawUsername
         }
         const res = await updateProfileApi(payload)
-        const data = (res?.data as any)?.data ?? (res?.data as any)
-        const profileData = data && typeof data === 'object' ? data : {}
+        const raw = (res?.data as any)?.data ?? (res?.data as any)
+        const profileData =
+          raw && typeof raw === 'object' && raw.data && typeof raw.data === 'object'
+            ? raw.data
+            : raw && typeof raw === 'object'
+              ? raw
+              : {}
         const name = profileData?.name || [profileData?.firstName, profileData?.lastName].filter(Boolean).join(' ') || 'User'
         const handle = profileData?.username ? (profileData.username.startsWith('@') ? profileData.username : `@${profileData.username}`) : '@user'
         const followers = Number(profileData?.followersCount ?? profileData?.followers_count ?? 0)
         const following = Number(profileData?.followingCount ?? profileData?.following_count ?? 0)
+        const avatarValue = profileData?.avatar ?? ''
         dispatch(setProfile({
           id: profileData?.id || '',
           name,
           handle,
-          avatar: profileData?.avatar || '',
+          avatar: avatarValue,
           bio: '',
           followers: Number.isFinite(followers) ? followers : 0,
           following: Number.isFinite(following) ? following : 0,
@@ -84,6 +100,18 @@ export function useProfileAction() {
           type: 'customer',
           isFollowing: profileData?.isFollowing ?? profileData?.is_following ?? false,
         }) as any)
+        const storedUserStr = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null
+        if (storedUserStr && avatarValue) {
+          try {
+            const stored = JSON.parse(storedUserStr) as Record<string, unknown>
+            if (stored && (stored.id === profileData?.id || stored.id === currentUserId)) {
+              const merged = { ...stored, avatar: avatarValue, name: name || stored.name, firstName: profileData?.firstName ?? stored.firstName, lastName: profileData?.lastName ?? stored.lastName }
+              localStorage.setItem('user', JSON.stringify(merged))
+              window.dispatchEvent(new CustomEvent('auth:user-updated', { detail: merged }))
+            }
+          } catch (_) {}
+        }
+        dispatch(getProfile({ viewedUserId, isOwnProfile }) as any)
       } catch (err) {
         throw err
       } finally {

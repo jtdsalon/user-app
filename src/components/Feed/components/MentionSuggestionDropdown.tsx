@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, Typography, Stack, Avatar } from '@mui/material';
+import { User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '@mui/material/styles';
 import { getFullImageUrl } from '@/lib/util/imageUrl';
@@ -100,9 +101,15 @@ export const MentionSuggestionDropdown: React.FC<MentionSuggestionDropdownProps>
               }}
             >
               <Avatar
-                src={getFullImageUrl(user.avatar) || undefined}
-                sx={{ width: 32, height: 32 }}
-              />
+                src={getFullImageUrl(user.avatar) || user.avatar || undefined}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: !(getFullImageUrl(user.avatar) || user.avatar) ? 'action.hover' : undefined,
+                }}
+              >
+                {!(getFullImageUrl(user.avatar) || user.avatar) && <User size={16} strokeWidth={1.5} />}
+              </Avatar>
               <Box>
                 <Typography sx={{ fontSize: '13px', fontWeight: 800 }}>
                   {user.name}
