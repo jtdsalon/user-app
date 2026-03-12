@@ -4,6 +4,12 @@ import { Provider } from 'react-redux'
 import App from './App.tsx';
 import store from './state/store.ts';
 import { AuthProvider } from '@/components/Auth/AuthContext';
+import { getCspContent } from '@/config/api';
+
+const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+if (cspMeta) {
+  cspMeta.setAttribute('content', getCspContent());
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

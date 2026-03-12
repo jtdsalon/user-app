@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React from 'react';
 import {
   Box,
   InputBase,
@@ -19,12 +19,10 @@ import {
 } from '@mui/material';
 import { Search, X, SlidersHorizontal, Sparkles, TrendingUp, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useFeedSearchAction } from './hooks/useFeedSearchAction';
+import type { FeedFilters } from './types';
 
-export interface FeedFilters {
-  categories: string[];
-  sortBy: 'newest' | 'popular';
-  contentType: 'all' | 'before-after';
-}
+export type { FeedFilters };
 
 interface FeedSearchProps {
   searchQuery: string;
@@ -34,9 +32,6 @@ interface FeedSearchProps {
   placeholder?: string;
   suggestions?: string[];
 }
-
-const TRENDING_TAGS = ['#skincare', '#minimal', '#glow', '#aesthetic', '#hair', '#makeup'];
-const CATEGORIES = ['skincare', 'hair', 'nails', 'makeup', 'wellness'];
 
 export const FeedSearch: React.FC<FeedSearchProps> = ({
   searchQuery,
@@ -49,121 +44,45 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDarkMode = theme.palette.mode === 'dark';
-  const [queryLocal, setQueryLocal] = useState(searchQuery);
-  const [isFocused, setIsFocused] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const open = Boolean(anchorEl);
+  const {
+    queryLocal,
+    setQueryLocal,
+    isFocused,
+    showSuggestions,
+    setShowSuggestions,
+    anchorEl,
+    open,
+    isDrawerOpen,
+    setIsDrawerOpen,
+    containerRef,
+    handleClear,
+    handleTagClick,
+    handleSuggestionClick,
+    handleFilterClick,
+    handleFilterClickMobile,
+    handleFilterClose,
+    toggleCategory,
+    handleSortChange,
+    handleTypeChange,
+    handleResetFilters,
+    handleBlur,
+    handleFocus,
+    activeFilterCount,
+    filteredSuggestions,
+    TRENDING_TAGS,
+    CATEGORIES,
+  } = useFeedSearchAction({
+    searchQuery,
+    onSearch,
+    activeFilters,
+    onFilterChange,
+    suggestions,
+  });
 
-  useEffect(() => setQueryLocal(searchQuery), [searchQuery]);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onSearch(queryLocal), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [queryLocal, onSearch]);
-
-  const handleClear = useCallback(() => {
-    setQueryLocal('');
-    onSearch('');
-    setShowSuggestions(false);
-  }, [onSearch]);
-
-  const handleTagClick = useCallback(
-    (tag: string) => {
-      const cleanTag = tag.replace('#', '');
-      setQueryLocal(cleanTag);
-      onSearch(cleanTag);
-      setShowSuggestions(false);
-    },
-    [onSearch]
-  );
-
-  const handleSuggestionClick = useCallback(
-    (suggestion: string) => {
-      setQueryLocal(suggestion);
-      onSearch(suggestion);
-      setShowSuggestions(false);
-    },
-    [onSearch]
-  );
-
-  const handleFilterClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (isMobile) {
-      setIsDrawerOpen(true);
-    } else {
-      setAnchorEl(event.currentTarget);
-    }
-  };
-
-  const handleFilterClose = useCallback(() => {
-    setAnchorEl(null);
-    setIsDrawerOpen(false);
-  }, []);
-
-  const toggleCategory = useCallback(
-    (cat: string) => {
-      const newCats = activeFilters.categories.includes(cat)
-        ? activeFilters.categories.filter((c) => c !== cat)
-        : [...activeFilters.categories, cat];
-      const newFilters = { ...activeFilters, categories: newCats };
-      onFilterChange?.(newFilters);
-    },
-    [activeFilters, onFilterChange]
-  );
-
-  const handleSortChange = useCallback(
-    (sort: 'newest' | 'popular') => {
-      const newFilters = { ...activeFilters, sortBy: sort };
-      onFilterChange?.(newFilters);
-      if (isMobile) handleFilterClose();
-    },
-    [activeFilters, onFilterChange, isMobile, handleFilterClose]
-  );
-
-  const handleTypeChange = useCallback(
-    (type: 'all' | 'before-after') => {
-      onFilterChange?.({ ...activeFilters, contentType: type });
-    },
-    [activeFilters, onFilterChange]
-  );
-
-  const handleResetFilters = useCallback(() => {
-    const reset: FeedFilters = { categories: [], sortBy: 'newest', contentType: 'all' };
-    onFilterChange?.(reset);
-    if (isMobile) handleFilterClose();
-  }, [onFilterChange, isMobile, handleFilterClose]);
-
-  const activeFilterCount =
-    activeFilters.categories.length +
-    (activeFilters.sortBy !== 'newest' ? 1 : 0) +
-    (activeFilters.contentType !== 'all' ? 1 : 0);
-
-  const allSuggestions = Array.from(new Set([...suggestions, ...TRENDING_TAGS.map(t => t.replace('#', ''))]));
-  const filteredSuggestions = allSuggestions
-    .filter(
-      (s) =>
-        s.toLowerCase().includes(queryLocal.toLowerCase().trim()) &&
-        s.toLowerCase() !== queryLocal.toLowerCase().trim()
-    )
-    .slice(0, 8);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowSuggestions(false);
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    setIsFocused(false);
-    setTimeout(() => setShowSuggestions(false), 200);
-  }, []);
+  const glassBg = isDarkMode
+    ? 'rgba(15, 23, 42, 0.85)'
+    : 'rgba(255, 255, 255, 0.85)';
 
   const FilterContent = () => (
     <Box sx={{ p: isMobile ? 3 : 1.5 }}>
@@ -292,10 +211,6 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
     </Box>
   );
 
-  const glassBg = isDarkMode
-    ? 'rgba(15, 23, 42, 0.85)'
-    : 'rgba(255, 255, 255, 0.85)';
-
   return (
     <Box
       ref={containerRef}
@@ -375,15 +290,8 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
           <InputBase
             placeholder={placeholder}
             value={queryLocal}
-            onChange={(e) => {
-              const v = e.target.value;
-              setQueryLocal(v);
-              setShowSuggestions(true);
-            }}
-            onFocus={() => {
-              setIsFocused(true);
-              setShowSuggestions(true);
-            }}
+            onChange={(e) => setQueryLocal(e.target.value)}
+            onFocus={handleFocus}
             onBlur={handleBlur}
             onKeyDown={(e) => {
               if (e.key === 'Escape') setShowSuggestions(false);
@@ -432,7 +340,7 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
               <Box sx={{ position: 'relative' }}>
                 <IconButton
                   size="small"
-                  onClick={handleFilterClick}
+                  onClick={isMobile ? handleFilterClickMobile : handleFilterClick}
                   sx={{
                     color: isFocused || activeFilterCount > 0 ? 'secondary.main' : 'text.secondary',
                     bgcolor: activeFilterCount > 0 ? 'secondary.main' + '18' : 'transparent',

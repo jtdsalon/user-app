@@ -14,7 +14,7 @@ import {
   CircularProgress,
   Box,
 } from '@mui/material';
-import { X, UserPlus, Check } from 'lucide-react';
+import { X, UserPlus, Check, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLayout } from '../common/layouts/layoutContext';
 import { getPostLikersApi, getPostCommentLikersApi, type PostLiker } from '@/services/api/feedService';
@@ -144,7 +144,16 @@ export const LikesDialog: React.FC<LikesDialogProps> = ({ open, onClose, postId,
                       ) : undefined}
                     >
                       <ListItemAvatar>
-                        <Avatar src={getFullImageUrl(user.avatar)} sx={{ width: 44, height: 44 }} />
+                        <Avatar
+                          src={getFullImageUrl(user.avatar) || user.avatar || undefined}
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            bgcolor: !(getFullImageUrl(user.avatar) || user.avatar) ? 'action.hover' : undefined,
+                          }}
+                        >
+                          {!(getFullImageUrl(user.avatar) || user.avatar) && <User size={22} strokeWidth={1.5} />}
+                        </Avatar>
                       </ListItemAvatar>
                       <ListItemText
                         primary={

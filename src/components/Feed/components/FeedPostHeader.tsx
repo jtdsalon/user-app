@@ -10,7 +10,7 @@ import {
   Stack,
   useTheme,
 } from '@mui/material';
-import { MoreVertical, Pencil, Trash, Share2, BadgeCheck } from 'lucide-react';
+import { MoreVertical, Pencil, Trash, Share2, BadgeCheck, User } from 'lucide-react';
 import { FeedPost } from '../types';
 import { getFeedStrings } from '../properties';
 import { getFullImageUrl } from '@/lib/util/imageUrl';
@@ -24,6 +24,8 @@ interface FeedPostHeaderProps {
   onEdit: () => void;
   onDelete: () => void;
   onRepost: () => void;
+  /** When true, follow button shows loading and is disabled */
+  followLoading?: boolean;
 }
 
 export const FeedPostHeader: React.FC<FeedPostHeaderProps> = ({
@@ -35,17 +37,19 @@ export const FeedPostHeader: React.FC<FeedPostHeaderProps> = ({
   onEdit,
   onDelete,
   onRepost,
+  followLoading = false,
 }) => {
   const theme = useTheme();
   const s = getFeedStrings();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const isSalonOrPage = post.userType === 'salon' || post.userType === 'page';
+  const avatarUrl = getFullImageUrl(post.userAvatar) || post.userAvatar || null;
 
   return (
     <CardHeader
       avatar={
         <Avatar
-          src={getFullImageUrl(post.userAvatar) || post.userAvatar}
+          src={avatarUrl || undefined}
           onClick={onHeaderClick}
           sx={{
             width: 38,
@@ -58,8 +62,11 @@ export const FeedPostHeader: React.FC<FeedPostHeaderProps> = ({
             border: '1px solid',
             borderColor: 'divider',
             cursor: 'pointer',
+            bgcolor: avatarUrl ? undefined : 'action.hover',
           }}
-        />
+        >
+          {!avatarUrl && <User size={20} strokeWidth={1.5} />}
+        </Avatar>
       }
       title={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -84,19 +91,20 @@ export const FeedPostHeader: React.FC<FeedPostHeaderProps> = ({
 
           {!isOwnPost && (
             <Typography
-              onClick={onToggleFollow}
+              onClick={followLoading ? undefined : onToggleFollow}
               sx={{
                 ml: 2,
                 fontSize: '9px',
                 fontWeight: 900,
                 color: isFavourited ? 'text.secondary' : 'secondary.main',
-                cursor: 'pointer',
+                cursor: followLoading ? 'wait' : 'pointer',
                 letterSpacing: '0.12em',
                 transition: 'all 0.2s',
-                '&:hover': { opacity: 0.7 },
+                opacity: followLoading ? 0.7 : 1,
+                '&:hover': followLoading ? {} : { opacity: 0.7 },
               }}
             >
-              {isFavourited ? s.postHeader.favourite : s.postHeader.public}
+              {followLoading ? '...' : isFavourited ? s.postHeader.favourite : s.postHeader.public}
             </Typography>
           )}
         </Stack>

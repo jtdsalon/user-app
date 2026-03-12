@@ -45,6 +45,7 @@ import { Appointment } from '../Home/types';
 import { MainLayout } from '../common/layouts/MainLayout';
 import { getMyBookingsApi, type MyBookingItem } from '../../services/api/bookingService';
 import { formatLKR } from '@/lib/utils/currency';
+import { getServerOrigin } from '@/config/api';
 
 function formatTime(isoTime: string | Date): string {
   if (isoTime == null) return '—';
@@ -71,8 +72,7 @@ function formatDate(bookingDate: string): string {
 const getUploadsUrl = (path: string) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
-  const base = ((import.meta as any).env?.VITE_APP_BASE_URL as string) || 'http://localhost:5000/api';
-  const origin = base.replace(/\/api\/?$/, '');
+  const origin = getServerOrigin();
   return path.startsWith('/') ? `${origin}${path}` : `${origin}/uploads/${path}`;
 };
 

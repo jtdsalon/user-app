@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import type { FeedPost } from '../types';
+import type { FeedPost } from '../../types';
 import type { RootState } from '@/state/store';
 import { useRealtime } from '@/contexts/RealtimeContext';
 import {
@@ -18,18 +18,14 @@ import {
   deletePostComment,
   togglePostCommentLike,
 } from '@/state/feed';
-import { useLayout } from '../../common/layouts/layoutContext';
-import { useAuth } from '../../Auth/AuthContext';
-import { getFilteredPosts, getBaseSuggestions } from '../feedSelectors';
-import type { FeedFilters } from '../FeedSearch';
+import { getFilteredPosts, getBaseSuggestions } from '../../feedSelectors';
+import type { FeedFilters } from '../../FeedSearch';
 
 const FEED_PAGE_LIMIT = 20;
 
-export function useFeedAction() {
+export function useFeedViewAction() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { user } = useAuth();
-  const { favorites, followedUsers } = useLayout();
   const feed = useSelector((s: RootState) => s.feed);
 
   const [viewTab, setViewTab] = useState(0);
@@ -43,13 +39,12 @@ export function useFeedAction() {
   });
 
   const observerTarget = useRef<HTMLDivElement>(null);
-  const prevViewTabRef = useRef<number | null>(null);
+  const initialFetchSentRef = useRef<{ favourites: boolean; public: boolean }>({ favourites: false, public: false });
 
   const activeSlice = viewTab === 0 ? feed.favourites : feed.public;
   const hasMore = activeSlice.page * FEED_PAGE_LIMIT < activeSlice.total;
   const isLoadingMore = activeSlice.loadingMore;
 
-  /** Tab-agnostic filter: data is already favourites vs public from API */
   const tabFilterAll = useCallback((_p: FeedPost) => true, []);
 
   const getFilteredBase = useCallback(() => {
@@ -62,17 +57,39 @@ export function useFeedAction() {
     return getBaseSuggestions(activeSlice.posts);
   }, [activeSlice.posts]);
 
+  // Single effect: fetch initial page for current tab when needed. Ref prevents duplicate API calls (e.g. React Strict Mode double-invoke).
   useEffect(() => {
     if (viewTab === 0) {
-      if (feed.favourites.posts.length === 0 && !feed.favourites.loading && !feed.favourites.requestedOnce) {
+      const shouldFetch =
+        !initialFetchSentRef.current.favourites &&
+        feed.favourites.posts.length === 0 &&
+        !feed.favourites.loading &&
+        !feed.favourites.requestedOnce;
+      if (shouldFetch) {
+        initialFetchSentRef.current.favourites = true;
         dispatch(getFavouritesFeedPosts({ page: 1 }));
       }
     } else {
-      if (feed.public.posts.length === 0 && !feed.public.loading && !feed.public.requestedOnce) {
+      const shouldFetch =
+        !initialFetchSentRef.current.public &&
+        feed.public.posts.length === 0 &&
+        !feed.public.loading &&
+        !feed.public.requestedOnce;
+      if (shouldFetch) {
+        initialFetchSentRef.current.public = true;
         dispatch(getPublicFeedPosts({ page: 1 }));
       }
     }
-  }, [dispatch, viewTab, feed.favourites.posts.length, feed.favourites.loading, feed.favourites.requestedOnce, feed.public.posts.length, feed.public.loading, feed.public.requestedOnce]);
+  }, [
+    dispatch,
+    viewTab,
+    feed.favourites.posts.length,
+    feed.favourites.loading,
+    feed.favourites.requestedOnce,
+    feed.public.posts.length,
+    feed.public.loading,
+    feed.public.requestedOnce,
+  ]);
 
   const realtime = useRealtime();
   useEffect(() => {
@@ -90,18 +107,6 @@ export function useFeedAction() {
       else dispatch(getPublicFeedPosts({ page: 1, silent: true }));
     });
   }, [realtime, dispatch, viewTab]);
-
-  useEffect(() => {
-    const viewTabChanged = prevViewTabRef.current !== null && prevViewTabRef.current !== viewTab;
-    prevViewTabRef.current = viewTab;
-    if (viewTabChanged) {
-      if (viewTab === 0 && feed.favourites.posts.length === 0 && !feed.favourites.loading && !feed.favourites.requestedOnce) {
-        dispatch(getFavouritesFeedPosts({ page: 1 }));
-      } else if (viewTab === 1 && feed.public.posts.length === 0 && !feed.public.loading && !feed.public.requestedOnce) {
-        dispatch(getPublicFeedPosts({ page: 1 }));
-      }
-    }
-  }, [viewTab, dispatch, feed.favourites.posts.length, feed.favourites.loading, feed.favourites.requestedOnce, feed.public.posts.length, feed.public.loading, feed.public.requestedOnce]);
 
   const loadMoreItems = useCallback(() => {
     if (isLoadingMore || !hasMore) return;
@@ -192,9 +197,7 @@ export function useFeedAction() {
     setViewTab,
     displayedPosts,
     feed,
-    /** Loading state for the active tab (Favourites or Public) */
     loading: activeSlice.loading,
-    /** Error for the active tab */
     error: activeSlice.error,
     searchQuery,
     setSearchQuery,

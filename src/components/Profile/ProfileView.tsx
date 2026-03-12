@@ -62,10 +62,9 @@ import { useProfileAction } from './hooks/useProfileAction';
 import { useAuth } from '@/components/Auth/AuthContext';
 import { getFeedPosts, getSavedFeedPosts } from '@/state/feed';
 import type { RootState } from '@/state/store';
-import { FeedItem } from '../Feed/FeedItem';
-import FeedComposer from '../Feed/FeedComposer';
+import { FeedItem, FeedComposer } from '../Feed';
 import { MainLayout } from '../common/layouts/MainLayout';
-import { useFeedAction } from '../Feed/hooks/useFeedAction';
+import { useFeedViewAction } from '../Feed/FeedView/hooks/useFeedViewAction';
 import { optimizeImage } from '@/lib/util/imageProcessor';
 import { getFullImageUrl } from '@/lib/util/imageUrl';
 
@@ -347,7 +346,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onViewSalon }) => {
     handleCloseComposer,
     isComposerOpen,
     editingPost,
-  } = useFeedAction();
+  } = useFeedViewAction();
 
   const [activeTab, setActiveTab] = useState(0);
   const [displayMode, setDisplayMode] = useState<'grid' | 'feed'>('feed');
@@ -527,6 +526,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onViewSalon }) => {
               sx={{ mb: 4, textAlign: isMobile ? 'center' : 'left' }}
             >
               <Avatar
+                key={currentUser.avatar ? `avatar-${String(currentUser.avatar).slice(-40)}` : 'avatar-default'}
                 src={getFullImageUrl(currentUser.avatar)}
                 sx={{
                   width: 100,
