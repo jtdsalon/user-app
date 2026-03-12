@@ -15,16 +15,16 @@ import {
   Zoom
 } from '@mui/material';
 import { Plus } from 'lucide-react';
-import { FeedItem } from './FeedItem';
-import { getFeedStrings } from './properties';
-import FeedComposer from './FeedComposer';
-import { MainLayout } from '../common/layouts/MainLayout';
-import { useAuth } from '../Auth/AuthContext';
-import { useFeedAction } from './hooks/useFeedAction';
+import { FeedItem } from '../FeedItem';
+import { getFeedStrings } from '../properties';
+import { FeedComposer } from '../FeedComposer';
+import { MainLayout } from '../../common/layouts/MainLayout';
+import { useAuth } from '../../Auth/AuthContext';
+import { useFeedViewAction } from './hooks/useFeedViewAction';
 import { useSelector, useDispatch } from 'react-redux';
 import { getProfile } from '@/state/profile';
-import { StorySection } from './components';
-import { FeedSearch } from './FeedSearch';
+import { StorySection } from '../components';
+import { FeedSearch } from '../FeedSearch';
 
 const FeedView: React.FC = () => {
   const theme = useTheme();
@@ -50,9 +50,7 @@ const FeedView: React.FC = () => {
     viewTab,
     setViewTab,
     displayedPosts,
-    feed,
     loading,
-    error,
     searchQuery,
     setSearchQuery,
     activeFilters,
@@ -65,7 +63,6 @@ const FeedView: React.FC = () => {
     handleOpenComposer,
     handleEditPost,
     handleCloseComposer,
-    handleUpdatePost,
     handleDeletePost,
     handleSavePost,
     handleToggleLike,
@@ -74,8 +71,9 @@ const FeedView: React.FC = () => {
     handleUpdateComment,
     handleDeleteComment,
     handleToggleCommentLike,
+    handleUpdatePost,
     observerTarget,
-  } = useFeedAction();
+  } = useFeedViewAction();
 
   const s = getFeedStrings();
 
@@ -151,7 +149,7 @@ const FeedView: React.FC = () => {
                     onDelete={handleDeletePost}
                     onEdit={handleEditPost}
                     onUpdate={handleUpdatePost}
-                    onViewSalon={(id) => navigate(`/salon/${id}`)}
+                    onViewSalon={(id: string) => navigate(`/salon/${id}`)}
                     onToggleLike={handleToggleLike}
                     onToggleSave={handleToggleSave}
                     onAddComment={handleAddComment}

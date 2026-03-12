@@ -23,6 +23,8 @@ export const GET_SALONS_BY_CATEGORY_URL = '/salons/by-category'
 export const GET_SALONS_CURSOR_URL = '/salons/cursor'
 export const REFRESH_TOKEN_URL = '/auth/refresh'
 export const LOGOUT_URL = '/auth/logout'
+export const FORGOT_PASSWORD_URL = '/auth/forgot-password'
+export const RESET_PASSWORD_URL = '/auth/reset-password'
 
 // Salon API Endpoints
 export const GET_SALONS_URL = '/salons'

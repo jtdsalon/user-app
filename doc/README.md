@@ -56,6 +56,12 @@ The User App allows customers to:
 
 ---
 
+## Documentation
+
+- **[ENV_AND_API_CONFIG.md](./ENV_AND_API_CONFIG.md)** — Environment variables, API base URL, image URLs, and CSP (env-only configuration).
+
+---
+
 ## Folder Structure
 
 ```
@@ -84,21 +90,23 @@ user-app/
 npm install
 ```
 
-2. Configure environment variables (Vite)
+2. Configure environment variables
 
-Create .env.development:
+Copy `.env.example` to `.env` or `.env.development` and set at least:
 
 ```env
-VITE_API_URL=http://localhost:5000/api
-VITE_DEFAULT_LOCALE=en
-VITE_DEFAULT_CURRENCY=USD
+VITE_APP_BASE_URL=http://localhost:3000/api
 ```
+
+All API and image URLs are driven by env only. See **[ENV_AND_API_CONFIG.md](./ENV_AND_API_CONFIG.md)** for full details (CSP, image origins, per-environment examples, AWS dev).
 
 3. Start the development server
 
 ```bash
 npm run dev
 ```
+
+Restart the dev server after changing any env file.
 
 ---
 

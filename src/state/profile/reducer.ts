@@ -8,8 +8,14 @@ export function profileReducer(
   switch (action.type) {
     case TYPES.GET_PROFILE:
       return { ...state, loading: true, error: null }
-    case TYPES.GET_PROFILE_SUCCESS:
-      return { ...state, loading: false, profile: action.payload, error: null }
+    case TYPES.GET_PROFILE_SUCCESS: {
+      const prev = state.profile
+      const next = action.payload
+      const sameUser = prev?.id && next?.id && prev.id === next.id
+      const preserveAvatar = sameUser && prev?.avatar && !next?.avatar
+      const profile = preserveAvatar ? { ...next, avatar: prev.avatar } : next
+      return { ...state, loading: false, profile, error: null }
+    }
     case TYPES.GET_PROFILE_ERROR:
       return { ...state, loading: false, profile: null, error: action.payload }
 

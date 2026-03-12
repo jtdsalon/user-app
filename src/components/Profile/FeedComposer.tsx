@@ -17,6 +17,7 @@ import {
 import { Image as ImageIcon, X, Camera } from 'lucide-react';
 import { FeedPost } from './types';
 import { optimizeImage } from '@/lib/util/imageProcessor';
+import { getFullImageUrl } from '@/lib/util/imageUrl';
 
 interface FeedComposerProps {
   open: boolean;
@@ -114,7 +115,7 @@ const FeedComposer: React.FC<FeedComposerProps> = ({
         <Stack spacing={3} sx={{ mt: 2 }}>
           {/* User Info */}
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar src={currentUser.avatar} sx={{ width: 40, height: 40 }} />
+            <Avatar src={getFullImageUrl(currentUser.avatar) || currentUser.avatar} sx={{ width: 40, height: 40 }} />
             <Box>
               <Typography sx={{ fontSize: '12px', fontWeight: 700, color: 'text.primary' }}>
                 {currentUser.name}

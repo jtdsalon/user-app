@@ -37,7 +37,8 @@ export function* getProfileSaga(action: { payload: { viewedUserId: string; isOwn
     const res: any = yield call(isOwnProfile ? getProfileApi : getUserByIdApi, viewedUserId)
     const data = (res?.data as any)?.data ?? (res?.data as any)
     const profileData = data && typeof data === 'object' ? data : {}
-    yield put(getProfileSuccess(apiProfileToUserProfile(profileData)))
+    const userProfile = apiProfileToUserProfile(profileData)
+    yield put(getProfileSuccess(userProfile))
   } catch (err: any) {
     yield put(getProfileError(err?.message || 'Failed to load profile'))
   }

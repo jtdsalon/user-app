@@ -4,6 +4,7 @@ import { loginApi, signupApi, logoutApi } from '@/services/api/userService';
 import { getDeviceFingerprint } from '@/lib/deviceFingerprint';
 import networkClient from '@/services/api/networkClient';
 import { AUTH_GOOGLE_URL, AUTH_APPLE_URL } from '@/services/api/endPoints';
+import { baseApiUrl } from '@/config/api';
 import { resetStore } from '@/state/actions';
 import { clearUserStorage } from '@/lib/logout';
 import { setStoredToken, removeStoredToken, isCookieAuth } from '@/lib/security';
@@ -45,8 +46,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const handleSessionExpired = () => setUser(null);
+    const handleUserUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<UserProfile>).detail;
+      if (detail && typeof detail === 'object') setUser(detail);
+    };
     window.addEventListener('auth:session-expired', handleSessionExpired);
-    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+    window.addEventListener('auth:user-updated', handleUserUpdated);
+    return () => {
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
+      window.removeEventListener('auth:user-updated', handleUserUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -180,8 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithApple = async () => {
     const clientId = (import.meta as any).env?.VITE_APPLE_CLIENT_ID as string | undefined;
-    const apiBase = ((import.meta as any).env?.VITE_APP_BASE_URL as string) || 'http://localhost:5000/api';
-    const redirectUri = `${apiBase}/auth/apple/callback`;
+    const redirectUri = `${baseApiUrl}/auth/apple/callback`;
     if (!clientId) throw new Error('Apple client id not configured (VITE_APPLE_CLIENT_ID)');
 
     // Load Apple Sign In JS

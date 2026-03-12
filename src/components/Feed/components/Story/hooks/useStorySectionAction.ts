@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useAuth } from '../../../../Auth/AuthContext';
+import { useAuth } from '@/components/Auth/AuthContext';
 import { searchUsersApi } from '@/services/api/userService';
 import { optimizeImage, getPreviewUrl } from '@/lib/util/imageProcessor';
 import type { MentionUser } from '../../MentionSuggestionDropdown';

@@ -1,14 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Box, Typography, Avatar, Stack, IconButton, InputBase } from '@mui/material';
 import { getFeedStrings } from '../properties';
-import { Send } from 'lucide-react';
+import { Send, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { getFullImageUrl } from '@/lib/util/imageUrl';
 import { searchUsersApi } from '@/services/api/userService';
-import { MentionSuggestionDropdown, type MentionUser } from './MentionSuggestionDropdown';
+import { MentionSuggestionDropdown, type MentionUser } from '../components/MentionSuggestionDropdown';
 
-/** Debounce delay for search requests (ms) */
 const SEARCH_DEBOUNCE_MS = 250;
 
 interface CommentInputProps {
@@ -40,19 +39,13 @@ export const CommentInput: React.FC<CommentInputProps> = ({
       const newValue = e.target.value;
       const cursorPosition = e.target.selectionStart ?? 0;
       onChange(newValue);
-
       const textBeforeCursor = newValue.substring(0, cursorPosition);
       const lastAt = textBeforeCursor.lastIndexOf('@');
-
-      if (
-        lastAt !== -1 &&
-        (lastAt === 0 || textBeforeCursor[lastAt - 1] === ' ')
-      ) {
+      if (lastAt !== -1 && (lastAt === 0 || textBeforeCursor[lastAt - 1] === ' ')) {
         const query = textBeforeCursor.substring(lastAt + 1);
         if (!query.includes(' ')) {
           setShowSuggestions(true);
           setSelectedIndex(0);
-
           if (debounceRef.current) clearTimeout(debounceRef.current);
           debounceRef.current = setTimeout(async () => {
             try {
@@ -86,22 +79,15 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   const handleSelectMention = useCallback(
     (user: MentionUser) => {
       const input = inputRef.current;
-      const cursorPosition = input
-        ? (input as HTMLTextAreaElement).selectionStart ?? value.length
-        : value.length;
+      const cursorPosition = input ? (input as HTMLTextAreaElement).selectionStart ?? value.length : value.length;
       const textBeforeCursor = value.substring(0, cursorPosition);
       const lastAt = textBeforeCursor.lastIndexOf('@');
-
-      const newValue =
-        value.substring(0, lastAt) +
-        `@${user.username} ` +
-        value.substring(cursorPosition);
-
+      const newValue = value.substring(0, lastAt) + `@${user.username} ` + value.substring(cursorPosition);
       onChange(newValue);
       setShowSuggestions(false);
       setTimeout(() => {
         input?.focus();
-        const nextPos = lastAt + user.username.length + 2; // @username 
+        const nextPos = lastAt + user.username.length + 2;
         try {
           (input as HTMLTextAreaElement).setSelectionRange(nextPos, nextPos);
         } catch {}
@@ -124,14 +110,10 @@ export const CommentInput: React.FC<CommentInputProps> = ({
       if (!showSuggestions || suggestions.length === 0) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((i) =>
-          i < suggestions.length - 1 ? i + 1 : 0
-        );
+        setSelectedIndex((i) => (i < suggestions.length - 1 ? i + 1 : 0));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((i) =>
-          i > 0 ? i - 1 : suggestions.length - 1
-        );
+        setSelectedIndex((i) => (i > 0 ? i - 1 : suggestions.length - 1));
       }
     },
     [showSuggestions, suggestions, selectedIndex, onSubmit, handleSelectMention]
@@ -141,7 +123,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
     <Box sx={{ mt: 2, pt: 1 }}>
       <Stack direction="row" spacing={1.5} alignItems="flex-end" sx={{ pb: 1 }}>
         <Avatar
-          src={getFullImageUrl(currentUser.avatar) || undefined}
+          src={getFullImageUrl(currentUser.avatar) || currentUser.avatar || undefined}
           onClick={() => navigate('/profile')}
           sx={{
             width: 32,
@@ -149,8 +131,11 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             mb: 0.5,
             border: `1px solid ${theme.palette.divider}`,
             cursor: 'pointer',
+            bgcolor: !(getFullImageUrl(currentUser.avatar) || currentUser.avatar) ? 'action.hover' : undefined,
           }}
-        />
+        >
+          {!(getFullImageUrl(currentUser.avatar) || currentUser.avatar) && <User size={16} strokeWidth={1.5} />}
+        </Avatar>
         <Box sx={{ flex: 1, position: 'relative' }}>
           <MentionSuggestionDropdown
             users={suggestions}
