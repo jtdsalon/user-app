@@ -179,11 +179,21 @@ export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (isAuthenticated) booking.loadLastBooked();
   };
 
+  // Realtime: when user returns to tab (e.g. from salon-app after adding staff), refetch booking data so card updates.
+  useEffect(() => {
+    const onFocus = () => {
+      if (booking.salon || booking.artist) booking.refetchBookingData?.();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [booking.salon, booking.artist, booking.refetchBookingData]);
+
   const bookingDataForModal = useMemo(
     () => ({
       services: booking.services,
       staff: booking.staff,
       lookbook: booking.lookbook,
+      bookingRules: booking.bookingRules,
       availability: booking.availability,
       loading: booking.loading,
       availabilityLoading: booking.availabilityLoading,
@@ -197,6 +207,7 @@ export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       booking.services,
       booking.staff,
       booking.lookbook,
+      booking.bookingRules,
       booking.availability,
       booking.loading,
       booking.availabilityLoading,

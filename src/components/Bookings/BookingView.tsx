@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Box, 
   Container, 
@@ -43,7 +43,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Appointment } from '../Home/types';
 import { MainLayout } from '../common/layouts/MainLayout';
-import { getMyBookingsApi, type MyBookingItem } from '../../services/api/bookingService';
+import { getMyBookingsApi, cancelBookingApi, rescheduleBookingApi, type MyBookingItem } from '../../services/api/bookingService';
 import { formatLKR } from '@/lib/utils/currency';
 import { getServerOrigin } from '@/config/api';
 
@@ -114,49 +114,56 @@ const BookingView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingNote, setEditingNote] = useState<{ id: string; text: string } | null>(null);
   const [detailAppointment, setDetailAppointment] = useState<Appointment | null>(null);
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; appt: Appointment | null; reason: string }>({ open: false, appt: null, reason: '' });
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [rawBookings, setRawBookings] = useState<MyBookingItem[]>([]);
+  const [rescheduleDialog, setRescheduleDialog] = useState<{ open: boolean; appt: Appointment | null; raw: MyBookingItem | null; newDate: string; newStartTime: string }>({ open: false, appt: null, raw: null, newDate: '', newStartTime: '' });
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res: any = await getMyBookingsApi({ page: 1, limit: 50 });
+      const body = res?.data;
+      const data = Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : [];
+      setRawBookings(data);
+      const fromApi = data.map((b: MyBookingItem) => apiBookingToAppointment(b));
+      setAppointments(fromApi);
+    } catch {
+      const saved = localStorage.getItem('luxe_bookings');
+      if (saved) {
+        try {
+          const parsed: any[] = JSON.parse(saved);
+          const valid = parsed
+            .filter(isValidAppointment)
+            .map((a: any) => ({
+              ...a,
+              id: a.id || a.salonId || String(a.timestamp),
+              salonName: a.salonName || 'Salon',
+              salonImage: a.salonImage || '',
+              serviceNames: Array.isArray(a.serviceNames) ? a.serviceNames : [a.serviceName].filter(Boolean) || ['Service'],
+              staffName: a.staffName || '—',
+              date: a.date || (a.booking_date ? formatDate(a.booking_date) : new Date(a.timestamp).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })),
+              time: a.time || '—',
+              totalPrice: a.totalPrice ?? 0,
+              timestamp: a.timestamp ?? 0,
+            } as Appointment))
+            .sort((a, b) => b.timestamp - a.timestamp);
+          setAppointments(valid);
+        } catch (_) {
+          setAppointments([]);
+        }
+      } else {
+        setAppointments([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const run = async () => {
-      try {
-        const res: any = await getMyBookingsApi({ page: 1, limit: 50 });
-        const body = res?.data;
-        const data = Array.isArray(body?.data) ? body.data : [];
-        const fromApi = data.map((b: MyBookingItem) => apiBookingToAppointment(b));
-        if (!cancelled) setAppointments(fromApi);
-      } catch {
-        const saved = localStorage.getItem('luxe_bookings');
-        if (saved && !cancelled) {
-          try {
-            const parsed: any[] = JSON.parse(saved);
-            const valid = parsed
-              .filter(isValidAppointment)
-              .map((a: any) => ({
-                ...a,
-                id: a.id || a.salonId || String(a.timestamp),
-                salonName: a.salonName || 'Salon',
-                salonImage: a.salonImage || '',
-                serviceNames: Array.isArray(a.serviceNames) ? a.serviceNames : [a.serviceName].filter(Boolean) || ['Service'],
-                staffName: a.staffName || '—',
-                date: a.date || (a.booking_date ? formatDate(a.booking_date) : new Date(a.timestamp).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })),
-                time: a.time || '—',
-                totalPrice: a.totalPrice ?? 0,
-                timestamp: a.timestamp ?? 0,
-              } as Appointment))
-              .sort((a, b) => b.timestamp - a.timestamp);
-            setAppointments(valid);
-          } catch (_) {
-            setAppointments([]);
-          }
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, []);
+    fetchBookings();
+  }, [fetchBookings]);
 
   const filteredAppointments = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -194,6 +201,94 @@ const BookingView: React.FC = () => {
       setAppointments(prev => prev.map(a => ({ ...a, notes: undefined })));
     }
   };
+
+  const handleCancelClick = (appt: Appointment) => {
+    setCancelDialog({ open: true, appt, reason: '' });
+  };
+
+  const handleCancelConfirm = async () => {
+    const { appt, reason } = cancelDialog;
+    if (!appt?.id || !reason.trim()) return;
+    setCancelLoading(true);
+    try {
+      const res: any = await cancelBookingApi(appt.id, reason.trim());
+      const lateFee = res?.data?.data?.late_cancel_fee ?? res?.data?.late_cancel_fee;
+      setCancelDialog({ open: false, appt: null, reason: '' });
+      setDetailAppointment(null);
+      await fetchBookings();
+      if (lateFee != null && Number(lateFee) > 0) {
+        window.alert(`Booking cancelled. A late cancellation fee of ${formatLKR(Number(lateFee))} may apply per salon policy.`);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to cancel';
+      window.alert(msg);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleRescheduleClick = (appt: Appointment) => {
+    const raw = rawBookings.find(b => b.id === appt.id) ?? null;
+    const dateStr = raw?.booking_date ? String(raw.booking_date).slice(0, 10) : '';
+    let startStr = '';
+    if (raw?.start_time) {
+      const t = String(raw.start_time);
+      if (t.includes('T')) startStr = t.slice(11, 16);
+      else if (/^\d{1,2}:\d{2}/.test(t)) startStr = t.slice(0, 5);
+    }
+    setRescheduleDialog({ open: true, appt, raw, newDate: dateStr, newStartTime: startStr });
+  };
+
+  const addMinutesToTime = (timeStr: string, minutes: number): string => {
+    const [h, m] = timeStr.split(':').map(Number);
+    const total = (h ?? 0) * 60 + (m ?? 0) + minutes;
+    const nh = Math.floor(total / 60) % 24;
+    const nm = total % 60;
+    return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+  };
+
+  const getDurationMinutes = (raw: MyBookingItem | null): number => {
+    if (!raw?.start_time || !raw?.end_time) return 60;
+    const [sh, sm] = String(raw.start_time).split(':').map(Number);
+    const [eh, em] = String(raw.end_time).split(':').map(Number);
+    return ((eh ?? 0) * 60 + (em ?? 0)) - ((sh ?? 0) * 60 + (sm ?? 0));
+  };
+
+  const handleRescheduleConfirm = async () => {
+    const { appt, raw, newDate, newStartTime } = rescheduleDialog;
+    if (!appt?.id || !newDate.trim() || !newStartTime.trim()) {
+      window.alert('Please select date and time.');
+      return;
+    }
+    const duration = raw ? getDurationMinutes(raw) : 60;
+    const start24 = newStartTime.length === 5 && /^\d{2}:\d{2}$/.test(newStartTime) ? newStartTime : newStartTime.replace(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i, (_, h, m, ampm) => {
+      let hour = parseInt(h, 10);
+      if (ampm?.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+      if (ampm?.toUpperCase() === 'AM' && hour === 12) hour = 0;
+      return `${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    });
+    const end24 = addMinutesToTime(start24, duration);
+    setRescheduleLoading(true);
+    try {
+      await rescheduleBookingApi(appt.id, { booking_date: newDate, start_time: start24, end_time: end24 });
+      setRescheduleDialog({ open: false, appt: null, raw: null, newDate: '', newStartTime: '' });
+      setDetailAppointment(null);
+      await fetchBookings();
+      window.alert('Booking rescheduled successfully.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to reschedule';
+      window.alert(msg);
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
+  const canCancel = (appt: Appointment) => {
+    const s = (appt.status || '').toLowerCase();
+    return s === 'upcoming' || s === 'pending' || s === 'confirmed';
+  };
+
+  const canReschedule = canCancel;
 
   return (
     <MainLayout>
@@ -279,7 +374,7 @@ const BookingView: React.FC = () => {
               </Typography>
               <Button 
                 variant="contained" 
-                href="/home"
+                onClick={() => navigate('/home')}
                 sx={{ 
                   borderRadius: '100px', 
                   bgcolor: 'text.primary', 
@@ -438,14 +533,36 @@ const BookingView: React.FC = () => {
                             ))}
                          </Stack>
                          
-                         <Button 
-                            variant="text" 
-                            endIcon={<ChevronRight size={14} />}
-                            onClick={() => setDetailAppointment(appt)}
-                            sx={{ fontSize: '10px', fontWeight: 900, color: 'text.secondary' }}
-                         >
-                            VIEW DETAILS
-                         </Button>
+                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                            {canReschedule(appt) && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => handleRescheduleClick(appt)}
+                                sx={{ fontSize: '10px', fontWeight: 900, borderColor: 'secondary.main', color: 'secondary.main' }}
+                              >
+                                RESCHEDULE
+                              </Button>
+                            )}
+                            {canCancel(appt) && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => handleCancelClick(appt)}
+                                sx={{ fontSize: '10px', fontWeight: 900, borderColor: 'error.main', color: 'error.main' }}
+                              >
+                                CANCEL
+                              </Button>
+                            )}
+                            <Button 
+                              variant="text" 
+                              endIcon={<ChevronRight size={14} />}
+                              onClick={() => setDetailAppointment(appt)}
+                              sx={{ fontSize: '10px', fontWeight: 900, color: 'text.secondary' }}
+                            >
+                              VIEW DETAILS
+                            </Button>
+                         </Stack>
                       </Box>
                     </Grid2>
                   </Grid2>
@@ -543,6 +660,11 @@ const BookingView: React.FC = () => {
                       {formatLKR(detailAppointment.totalPrice ?? 0)}
                     </Typography>
                   </Box>
+                  {detailAppointment.status !== 'cancelled' && detailAppointment.status !== 'completed' && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 1 }}>
+                      Pay at salon or when prompted by the salon.
+                    </Typography>
+                  )}
                   {(detailAppointment.notes || getNote(detailAppointment.id)) && (
                     <Box sx={{ pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
                       <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', fontSize: '9px', letterSpacing: '0.1em' }}>
@@ -555,7 +677,31 @@ const BookingView: React.FC = () => {
                   )}
                 </Stack>
               </DialogContent>
-              <DialogActions sx={{ p: 3, gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <DialogActions sx={{ p: 3, gap: 1.5, flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap' }}>
+                {canReschedule(detailAppointment) && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setDetailAppointment(null);
+                      handleRescheduleClick(detailAppointment);
+                    }}
+                    sx={{ borderColor: 'secondary.main', color: 'secondary.main', fontWeight: 800 }}
+                  >
+                    RESCHEDULE
+                  </Button>
+                )}
+                {canCancel(detailAppointment) && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setDetailAppointment(null);
+                      handleCancelClick(detailAppointment);
+                    }}
+                    sx={{ borderColor: 'error.main', color: 'error.main', fontWeight: 800 }}
+                  >
+                    CANCEL APPOINTMENT
+                  </Button>
+                )}
                 <Button
                   onClick={() => setDetailAppointment(null)}
                   sx={{ color: 'text.secondary', fontWeight: 800, order: { xs: 2, sm: 0 } }}
@@ -583,6 +729,98 @@ const BookingView: React.FC = () => {
               </DialogActions>
             </>
           )}
+        </Dialog>
+
+        {/* Cancel booking dialog */}
+        <Dialog
+          open={cancelDialog.open}
+          onClose={() => !cancelLoading && setCancelDialog({ open: false, appt: null, reason: '' })}
+          PaperProps={{ sx: { borderRadius: '28px', p: 2, maxWidth: 400, width: '100%' } }}
+        >
+          <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem' }}>Cancel appointment</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+              {cancelDialog.appt && (
+                <>Cancel your booking at {cancelDialog.appt.salonName}? Please provide a reason (required).</>
+              )}
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              placeholder="e.g. Change of plans"
+              value={cancelDialog.reason}
+              onChange={(e) => setCancelDialog(prev => ({ ...prev, reason: e.target.value }))}
+              disabled={cancelLoading}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '16px' } }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 3 }}>
+            <Button onClick={() => !cancelLoading && setCancelDialog({ open: false, appt: null, reason: '' })} sx={{ color: 'text.secondary', fontWeight: 800 }}>
+              BACK
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleCancelConfirm}
+              disabled={cancelLoading || !cancelDialog.reason.trim()}
+              sx={{ borderRadius: '100px', fontWeight: 900 }}
+            >
+              {cancelLoading ? <CircularProgress size={20} color="inherit" /> : 'CANCEL APPOINTMENT'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Reschedule booking dialog */}
+        <Dialog
+          open={rescheduleDialog.open}
+          onClose={() => !rescheduleLoading && setRescheduleDialog({ open: false, appt: null, raw: null, newDate: '', newStartTime: '' })}
+          PaperProps={{ sx: { borderRadius: '28px', p: 2, maxWidth: 400, width: '100%' } }}
+        >
+          <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem' }}>Reschedule appointment</DialogTitle>
+          <DialogContent>
+            {rescheduleDialog.appt && (
+              <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                {rescheduleDialog.appt.salonName} — choose new date and time.
+              </Typography>
+            )}
+            <Stack spacing={2}>
+              <TextField
+                fullWidth
+                type="date"
+                label="New date"
+                value={rescheduleDialog.newDate}
+                onChange={(e) => setRescheduleDialog(prev => ({ ...prev, newDate: e.target.value }))}
+                disabled={rescheduleLoading}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: new Date().toISOString().slice(0, 10) }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '16px' } }}
+              />
+              <TextField
+                fullWidth
+                type="time"
+                label="New start time"
+                value={rescheduleDialog.newStartTime}
+                onChange={(e) => setRescheduleDialog(prev => ({ ...prev, newStartTime: e.target.value }))}
+                disabled={rescheduleLoading}
+                InputLabelProps={{ shrink: true }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '16px' } }}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 3 }}>
+            <Button onClick={() => !rescheduleLoading && setRescheduleDialog({ open: false, appt: null, raw: null, newDate: '', newStartTime: '' })} sx={{ color: 'text.secondary', fontWeight: 800 }}>
+              BACK
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleRescheduleConfirm}
+              disabled={rescheduleLoading || !rescheduleDialog.newDate.trim() || !rescheduleDialog.newStartTime.trim()}
+              sx={{ borderRadius: '100px', fontWeight: 900 }}
+            >
+              {rescheduleLoading ? <CircularProgress size={20} color="inherit" /> : 'RESCHEDULE'}
+            </Button>
+          </DialogActions>
         </Dialog>
 
         {/* Edit Note Dialog */}

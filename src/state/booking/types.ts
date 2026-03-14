@@ -5,7 +5,7 @@ export const CLOSE_BOOKING = 'CLOSE_BOOKING'
 export const LOAD_BOOKING_DATA = 'LOAD_BOOKING_DATA'
 export const LOAD_BOOKING_DATA_SUCCESS = 'LOAD_BOOKING_DATA_SUCCESS'
 export const LOAD_BOOKING_DATA_ERROR = 'LOAD_BOOKING_DATA_ERROR'
-export const LOAD_AVAILABILITY = 'LOAD_AVAILABILITY'
+export const LOAD_AVAILABILITY = 'LOAD_AVAILABILITY' // payload: { staffId, date, durationMinutes?, bufferMinutes?, serviceId? }
 export const LOAD_AVAILABILITY_SUCCESS = 'LOAD_AVAILABILITY_SUCCESS'
 export const LOAD_AVAILABILITY_ERROR = 'LOAD_AVAILABILITY_ERROR'
 export const SUBMIT_BOOKING = 'SUBMIT_BOOKING'
@@ -40,6 +40,16 @@ export interface LookbookItem {
   vibe?: string
 }
 
+export interface BookingRules {
+  min_notice_minutes?: number
+  max_advance_days?: number
+  free_cancellation_hours?: number
+  late_cancel_fee_type?: string | null
+  advance_payment_rule?: string | null
+  reschedule_hours?: number
+}
+
+
 export interface TimeSlot {
   time: string
   label: string
@@ -53,6 +63,7 @@ export interface BookingState {
   services: BookingService[]
   staff: BookingStaff[]
   lookbook: LookbookItem[]
+  bookingRules: BookingRules | null
   availability: TimeSlot[]
   loading: boolean
   availabilityLoading: boolean
@@ -70,6 +81,7 @@ export const INITIAL_BOOKING_STATE: BookingState = {
   services: [],
   staff: [],
   lookbook: [],
+  bookingRules: null,
   availability: [],
   loading: false,
   availabilityLoading: false,

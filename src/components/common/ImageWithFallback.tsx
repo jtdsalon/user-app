@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar, AvatarProps, Box, SxProps, Theme } from '@mui/material';
+import { User } from 'lucide-react';
 import { getFullImageUrl } from '@/lib/util/imageUrl';
 import {
   DEFAULT_COVER_URL,
@@ -15,17 +16,19 @@ const PLACEHOLDERS: Record<ImagePlaceholderType, string> = {
   staff: DEFAULT_STAFF_AVATAR_URL,
 };
 
-/** Sanitize and resolve image URL, with fallback to placeholder if null/empty */
+/** Resolve image URL; for avatar/staff returns empty string when no image (caller shows icon). */
 export function getImageUrl(
   raw: string | undefined | null,
   type: ImagePlaceholderType = 'avatar'
 ): string {
   const resolved = getFullImageUrl(raw) || raw;
-  if (!resolved || typeof resolved !== 'string') return PLACEHOLDERS[type];
+  if (!resolved || typeof resolved !== 'string') {
+    return type === 'cover' ? PLACEHOLDERS[type] : '';
+  }
   return resolved;
 }
 
-/** Avatar with onError fallback to default placeholder */
+/** Avatar: show actual image, or User icon when no image / on error (no mock placeholder URLs). */
 export interface AvatarWithFallbackProps extends Omit<AvatarProps, 'src'> {
   src: string | undefined | null;
   alt?: string;
@@ -39,37 +42,49 @@ export const AvatarWithFallback: React.FC<AvatarWithFallbackProps> = ({
   children,
   ...avatarProps
 }) => {
+  const resolvedUrl = getImageUrl(src, placeholderType);
+  const useIconWhenEmpty = placeholderType === 'avatar' || placeholderType === 'staff';
   const [imgSrc, setImgSrc] = useState<string>(() =>
-    getImageUrl(src, placeholderType)
+    useIconWhenEmpty && !resolvedUrl ? '' : (resolvedUrl || PLACEHOLDERS[placeholderType])
   );
   const [errored, setErrored] = useState(false);
 
   useEffect(() => {
     const url = getImageUrl(src, placeholderType);
-    setImgSrc(url);
-    setErrored(false);
-  }, [src, placeholderType]);
-
-  const fallback = PLACEHOLDERS[placeholderType];
+    if (useIconWhenEmpty && !url) {
+      setImgSrc('');
+      setErrored(false);
+    } else {
+      setImgSrc(url || PLACEHOLDERS[placeholderType]);
+      setErrored(false);
+    }
+  }, [src, placeholderType, useIconWhenEmpty]);
 
   const handleError = () => {
     if (!errored) {
       setErrored(true);
-      setImgSrc(fallback);
+      setImgSrc(useIconWhenEmpty ? '' : PLACEHOLDERS[placeholderType]);
     }
   };
+
+  const showIcon = (useIconWhenEmpty && (!imgSrc || errored));
+  const displayChildren = showIcon ? (children ?? <User size={24} strokeWidth={1.5} />) : children;
 
   return (
     <Avatar
       {...avatarProps}
-      src={imgSrc}
-      imgProps={{
-        alt: alt || 'Avatar',
-        loading: 'lazy',
-        onError: handleError,
-      }}
+      src={showIcon ? undefined : imgSrc || undefined}
+      imgProps={
+        showIcon
+          ? undefined
+          : {
+              alt: alt || 'Avatar',
+              loading: 'lazy',
+              onError: handleError,
+            }
+      }
     >
-      {children}
+      {displayChildren}
     </Avatar>
   );
 };

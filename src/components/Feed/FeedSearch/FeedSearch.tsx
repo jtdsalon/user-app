@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Box,
   InputBase,
@@ -79,6 +80,29 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
     onFilterChange,
     suggestions,
   });
+
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!showSuggestions || !(filteredSuggestions.length > 0 || queryLocal.length > 0)) {
+      setDropdownRect(null);
+      return;
+    }
+    const updateRect = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setDropdownRect({ top: r.bottom + 8, left: r.left, width: r.width });
+    };
+    updateRect();
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [showSuggestions, filteredSuggestions.length, queryLocal.length]);
 
   const glassBg = isDarkMode
     ? 'rgba(15, 23, 42, 0.85)'
@@ -233,6 +257,7 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       >
         <Paper
+          ref={anchorRef}
           elevation={isFocused ? 12 : 0}
           sx={{
             display: 'flex',
@@ -377,63 +402,64 @@ export const FeedSearch: React.FC<FeedSearchProps> = ({
             </Tooltip>
           </Stack>
 
-          <AnimatePresence>
-            {showSuggestions && (filteredSuggestions.length > 0 || queryLocal.length > 0) && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                transition={{ duration: 0.2 }}
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: 8,
-                  zIndex: 1100,
-                }}
-              >
-                <Paper
-                  elevation={12}
-                  sx={{
-                    borderRadius: '20px',
-                    overflow: 'hidden',
-                    bgcolor: glassBg,
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    boxShadow: '0 24px 48px rgba(0,0,0,0.15)',
+          {dropdownRect &&
+            createPortal(
+              <AnimatePresence>
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.2 }}
+                  style={{
+                    position: 'fixed',
+                    top: dropdownRect.top,
+                    left: dropdownRect.left,
+                    width: dropdownRect.width,
+                    zIndex: 1400,
                   }}
                 >
-                  {filteredSuggestions.length > 0 ? (
-                    filteredSuggestions.map((s, i) => (
-                      <MenuItem
-                        key={`${s}-${i}`}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => handleSuggestionClick(s)}
-                        sx={{
-                          py: 1.5,
-                          px: 3,
-                          gap: 2,
-                          '&:hover': { bgcolor: 'secondary.main' + '12' },
-                        }}
-                      >
-                        <Search size={16} style={{ opacity: 0.5 }} />
-                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{s}</Typography>
-                      </MenuItem>
-                    ))
-                  ) : (
-                    <Box sx={{ py: 2, px: 3 }}>
-                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                        No suggestions for "{queryLocal}"
-                      </Typography>
-                    </Box>
-                  )}
-                </Paper>
-              </motion.div>
+                  <Paper
+                    elevation={12}
+                    sx={{
+                      borderRadius: '20px',
+                      overflow: 'hidden',
+                      bgcolor: glassBg,
+                      backdropFilter: 'blur(20px)',
+                      WebkitBackdropFilter: 'blur(20px)',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      boxShadow: '0 24px 48px rgba(0,0,0,0.15)',
+                    }}
+                  >
+                    {filteredSuggestions.length > 0 ? (
+                      filteredSuggestions.map((s, i) => (
+                        <MenuItem
+                          key={`${s}-${i}`}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleSuggestionClick(s)}
+                          sx={{
+                            py: 1.5,
+                            px: 3,
+                            gap: 2,
+                            '&:hover': { bgcolor: 'secondary.main' + '12' },
+                          }}
+                        >
+                          <Search size={16} style={{ opacity: 0.5 }} />
+                          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{s}</Typography>
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <Box sx={{ py: 2, px: 3 }}>
+                        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                          No suggestions for "{queryLocal}"
+                        </Typography>
+                      </Box>
+                    )}
+                  </Paper>
+                </motion.div>
+              </AnimatePresence>,
+              document.body
             )}
-          </AnimatePresence>
         </Paper>
       </motion.div>
 

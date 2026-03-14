@@ -50,10 +50,14 @@ export const GET_BRANCHES_BY_SALON_URL = '/branches/salon/{salonId}'
 export const VALIDATE_PROMO_CODE_URL = '/promotions/validate-code'
 export const RECORD_PROMOTION_VIEW_URL = '/promotions/{id}/view'
 
-// Booking
+// Booking (BOOKING_LOGIC_FLOW §12–13: slot hold, create booking)
 export const GET_BOOKING_CONTEXT_URL = '/bookings/context'
 export const GET_MY_BOOKINGS_URL = '/bookings/my-bookings'
 export const CREATE_BOOKING_URL = '/bookings'
+export const CREATE_SLOT_HOLD_URL = '/bookings/slot-hold'
+export const RELEASE_SLOT_HOLD_URL = '/bookings/slot-hold/{holdId}'
+export const CANCEL_BOOKING_URL = '/bookings/{bookingId}/cancel'
+export const RESCHEDULE_BOOKING_URL = '/bookings/{bookingId}/reschedule'
 export const UPLOAD_STYLE_IMAGE_URL = '/bookings/upload-style-image'
 
 // Vacancies / Jobs
