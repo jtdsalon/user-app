@@ -40,6 +40,7 @@ export interface SubmitBookingActionPayload {
   endTime: string
   notes?: string
   styleImages: Record<string, string> // serviceId -> url or dataUrl
+  slot_hold_id?: string // §12: optional; when set, backend consumes hold on create
 }
 
 export function* submitBookingSaga(
@@ -82,6 +83,7 @@ export function* submitBookingSaga(
       end_time: payload.endTime,
       notes: payload.notes,
       style_image_urls: styleImageUrls.length ? styleImageUrls : undefined,
+      ...(payload.slot_hold_id && { slot_hold_id: payload.slot_hold_id }),
     }
 
     const res: any = yield call(createBookingApi, createPayload)
@@ -94,7 +96,7 @@ export function* submitBookingSaga(
         salon = {
           id: payload.salonId,
           name: a?.salonName || 'Your sanctuary',
-          image: a?.avatar || a?.image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=800',
+          image: a?.avatar || a?.image || '',
           coverImage: a?.image,
         } as any
       }

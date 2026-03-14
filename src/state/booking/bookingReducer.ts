@@ -4,7 +4,7 @@ type Action =
   | { type: typeof T.OPEN_BOOKING; payload: { salon: T.BookingState['salon']; artist: T.BookingState['artist']; preselectedServiceId?: string | null } }
   | { type: typeof T.CLOSE_BOOKING }
   | { type: typeof T.LOAD_BOOKING_DATA; payload: { salon: T.BookingState['salon']; artist: T.BookingState['artist']; preselectedServiceId?: string | null } }
-  | { type: typeof T.LOAD_BOOKING_DATA_SUCCESS; payload: { services: T.BookingService[]; staff: T.BookingStaff[]; lookbook: T.LookbookItem[] } }
+  | { type: typeof T.LOAD_BOOKING_DATA_SUCCESS; payload: { services: T.BookingService[]; staff: T.BookingStaff[]; lookbook: T.LookbookItem[]; bookingRules?: T.BookingRules | null } }
   | { type: typeof T.LOAD_BOOKING_DATA_ERROR; payload: string }
   | { type: typeof T.LOAD_AVAILABILITY; payload: void }
   | { type: typeof T.LOAD_AVAILABILITY_SUCCESS; payload: T.TimeSlot[] }
@@ -48,6 +48,7 @@ export function bookingReducer(
         services: action.payload.services,
         staff: action.payload.staff,
         lookbook: action.payload.lookbook || [],
+        bookingRules: action.payload.bookingRules ?? null,
         loading: false,
         error: null,
       }

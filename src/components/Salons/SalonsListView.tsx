@@ -35,10 +35,11 @@ const SalonsListView: React.FC = () => {
         const pageNum = nextPage ?? 1
         const resp: any = await getSalonsByCategoryApi(category, pageNum, 20)
         const payload = resp?.data ?? {}
-        const dataArr = payload.data ?? payload.items ?? payload.salons ?? []
+        const rawData = payload.data
+        const dataArr = Array.isArray(rawData) ? rawData : (rawData && typeof rawData === 'object' && Array.isArray((rawData as any).data) ? (rawData as any).data : []) || payload.items || payload.salons || []
         const pagination = payload.pagination ?? {}
         const total = pagination.totalPages ?? pagination.pages ?? 0
-        const normalized = normalizeSalonList(Array.isArray(dataArr) ? dataArr : [])
+        const normalized = normalizeSalonList(dataArr)
         if (append) setItems(prev => [...prev, ...normalized])
         else setItems(normalized)
         setPage(pageNum)
@@ -47,9 +48,11 @@ const SalonsListView: React.FC = () => {
       } else {
         const resp: any = await getSalonsCursorApi(undefined, nextCursor || null, 20)
         const payload = resp?.data ?? {}
-        const dataArr = payload.data ?? payload.items ?? payload.salons ?? []
-        const next = payload.nextCursor ?? payload.cursor ?? payload.next ?? null
-        const normalized = normalizeSalonList(Array.isArray(dataArr) ? dataArr : [])
+        const rawData = payload.data
+        const dataArr = Array.isArray(rawData) ? rawData : (rawData && typeof rawData === 'object' && Array.isArray((rawData as any).data) ? (rawData as any).data : []) || payload.items || payload.salons || []
+        const paginationObj = payload.pagination ?? {}
+        const next = paginationObj.nextCursor ?? payload.nextCursor ?? payload.cursor ?? payload.next ?? null
+        const normalized = normalizeSalonList(dataArr)
         if (append) setItems(prev => [...prev, ...normalized])
         else setItems(normalized)
         setCursor(next ?? null)
