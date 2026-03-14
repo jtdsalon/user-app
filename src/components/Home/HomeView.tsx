@@ -200,6 +200,8 @@ const HomeView: React.FC = () => {
                   const categorySalons = salonsByCategoryMap[mapKey] || [];
                   const catLoading =
                     !salonsByCategoryMap[mapKey]?.length && (salonsByCategoryLoading || categories.length <= 1);
+                  if (categorySalons.length === 0 && !catLoading) return null;
+
                   const pagination = categoryPagination[mapKey];
                   const hasMore = pagination ? pagination.page < pagination.totalPages : false;
 

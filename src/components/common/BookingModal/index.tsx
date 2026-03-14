@@ -37,7 +37,7 @@ import { optimizeImage } from '@/lib/util/imageProcessor';
 import { getFullImageUrl } from '@/lib/util/imageUrl';
 import { AvatarWithFallback } from '@/components/common/ImageWithFallback';
 import { formatLKR } from '@/lib/utils/currency';
-import { validatePromoCodeApi, type ValidatedPromo } from '@/services/api/bookingService';
+import { validatePromoCodeApi, createSlotHoldApi, releaseSlotHoldApi, type ValidatedPromo } from '@/services/api/bookingService';
 
 interface VisualStyleSuggestion {
   id: string;
@@ -47,17 +47,26 @@ interface VisualStyleSuggestion {
   vibe?: string;
 }
 
+export interface BookingRulesDisplay {
+  min_notice_minutes?: number;
+  max_advance_days?: number;
+  free_cancellation_hours?: number;
+  advance_payment_rule?: string | null;
+  reschedule_hours?: number;
+}
+
 export interface BookingDataProps {
   services: Array<{ id: string; name: string; price: number; duration: number; category?: string; suggestedImages?: string[] }>;
   staff: Array<{ id: string; name: string; image?: string; role?: string }>;
   lookbook?: Array<{ id: string; image: string; name?: string; category?: string; vibe?: string }>;
+  bookingRules?: BookingRulesDisplay | null;
   availability: Array<{ time: string; label: string }>;
   loading: boolean;
   availabilityLoading: boolean;
   submitLoading: boolean;
   error: string | null;
   submitError: string | null;
-  loadAvailability: (staffId: string, dateStr: string) => void;
+  loadAvailability: (staffId: string, dateStr: string, options?: { durationMinutes?: number; bufferMinutes?: number; serviceId?: string }) => void;
   submitBooking: (params: {
     salonId: string;
     serviceIds: string[];
@@ -67,6 +76,7 @@ export interface BookingDataProps {
     selectedTime: string;
     notes?: string;
     styleImages: Record<string, string>;
+    slot_hold_id?: string;
   }) => void;
 }
 
@@ -137,7 +147,133 @@ function filterFutureTimeSlots(
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   return slots.filter((s) => parseTimeToMinutes(s.time || s.label) > currentMinutes);
 }
-const TIME_SLOTS = ['09:00 AM', '10:30 AM', '01:00 PM', '02:30 PM', '04:00 PM', '05:30 PM'];
+
+/** Format 24h time (HH:mm) to display (e.g. 09:00 → 09:00 AM, 13:30 → 01:30 PM) */
+function formatTimeLabel(h24: string): string {
+  const [hStr, mStr] = h24.split(':');
+  const h = parseInt(hStr || '0', 10);
+  const m = mStr || '00';
+  if (h === 0) return `12:${m} AM`;
+  if (h < 12) return `${String(h).padStart(2, '0')}:${m} AM`;
+  if (h === 12) return `12:${m} PM`;
+  return `${String(h - 12).padStart(2, '0')}:${m} PM`;
+}
+
+/** Generate 30-min slots from open to close using salon/artist hours. Returns display labels (e.g. 09:00 AM). */
+function generateSlotsFromSalonHours(
+  salon: Salon | null,
+  artist: Artist | null,
+  selectedDate: string,
+  dateIso: string
+): Array<{ time: string; label: string }> {
+  let openStr = '09:00';
+  let closeStr = '20:00';
+  let isOpen = true;
+
+  const dayOfWeek = (() => {
+    const d = dateIso.match(/^\d{4}-\d{2}-\d{2}/)
+      ? new Date(dateIso + 'T12:00:00')
+      : new Date(selectedDate);
+    return d.toLocaleDateString('en-US', { weekday: 'long' });
+  })();
+
+  const hoursRaw = (salon as { hoursRaw?: any })?.hoursRaw ?? salon;
+  if (Array.isArray(hoursRaw)) {
+    const dayHours = hoursRaw.find((h: any) =>
+      (h.day || '').toLowerCase() === dayOfWeek.toLowerCase()
+    );
+    if (dayHours) {
+      isOpen = !!dayHours.isOpen;
+      if (dayHours.open) openStr = String(dayHours.open).padStart(5, '0').slice(0, 5);
+      if (dayHours.close) closeStr = String(dayHours.close).padStart(5, '0').slice(0, 5);
+    }
+  } else if (typeof (salon?.hours) === 'string' && salon.hours !== 'N/A') {
+    const parts = salon.hours.split(/-|–|—/).map((s: string) => s.trim());
+    if (parts.length >= 2) {
+      const parsePart = (p: string) => {
+        const m = p.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
+        if (!m) return 0;
+        let h = parseInt(m[1], 10);
+        const mins = m[2] ? parseInt(m[2], 10) : 0;
+        if (m[3]?.toUpperCase() === 'PM' && h !== 12) h += 12;
+        else if (m[3]?.toUpperCase() === 'AM' && h === 12) h = 0;
+        return h * 60 + mins;
+      };
+      const openM = parsePart(parts[0]);
+      const closeM = parsePart(parts[1]);
+      if (openM > 0 || closeM > 0) {
+        const toStr = (mins: number) =>
+          `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+        openStr = toStr(openM);
+        closeStr = toStr(closeM);
+      }
+    }
+  } else if (artist?.hours) {
+    const parts = artist.hours.split(/-|–|—/).map((s: string) => s.trim());
+    if (parts.length >= 2) {
+      const parsePart = (p: string) => {
+        const m = p.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
+        if (!m) return 0;
+        let h = parseInt(m[1], 10);
+        const mins = m[2] ? parseInt(m[2], 10) : 0;
+        if (m[3]?.toUpperCase() === 'PM' && h !== 12) h += 12;
+        else if (m[3]?.toUpperCase() === 'AM' && h === 12) h = 0;
+        return h * 60 + mins;
+      };
+      const openM = parsePart(parts[0]);
+      const closeM = parsePart(parts[1]);
+      if (openM > 0 || closeM > 0) {
+        const toStr = (mins: number) =>
+          `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+        openStr = toStr(openM);
+        closeStr = toStr(closeM);
+      }
+    }
+  }
+
+  if (!isOpen) return [];
+
+  const [oh, om] = openStr.split(':').map(Number);
+  const [ch, cm] = closeStr.split(':').map(Number);
+  const openMins = (oh || 0) * 60 + (om || 0);
+  const closeMins = (ch || 0) * 60 + (cm || 0);
+
+  const slots: Array<{ time: string; label: string }> = [];
+  for (let m = openMins; m < closeMins; m += 30) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    const h24 = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    slots.push({ time: h24, label: formatTimeLabel(h24) });
+  }
+  return slots;
+}
+
+/** §2: True if salon/artist is closed on this date (for disabling date picker). */
+function isDateClosed(
+  salon: Salon | null,
+  artist: Artist | null,
+  dateIso: string
+): boolean {
+  const dayOfWeek = dateIso.match(/^\d{4}-\d{2}-\d{2}/)
+    ? new Date(dateIso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+    : '';
+  const hoursRaw = (salon as { hoursRaw?: any })?.hoursRaw ?? salon;
+  if (Array.isArray(hoursRaw)) {
+    const dayHours = hoursRaw.find((h: any) =>
+      (h.day || '').toLowerCase() === dayOfWeek.toLowerCase()
+    );
+    if (dayHours) return !dayHours.isOpen;
+  }
+  return false;
+}
+
+function addMinutes(time24: string, minutes: number): string {
+  const [h, m] = time24.split(':').map(Number);
+  const total = (h || 0) * 60 + (m || 0) + minutes;
+  const nh = Math.floor(total / 60) % 24;
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
 
 const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedServiceId, isOpen, onClose, onBookingComplete, bookingData }) => {
   const theme = useTheme();
@@ -159,6 +295,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
   const [appliedPromotion, setAppliedPromotion] = useState<ValidatedPromo | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  const [slotHoldId, setSlotHoldId] = useState<string | null>(null);
+  const [slotHoldLoading, setSlotHoldLoading] = useState(false);
 
   // Gallery Sub-State
   const [galleryViewService, setGalleryViewService] = useState<string | null>(null);
@@ -224,24 +362,53 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
   }, [salon, artist, deferredStaff]);
 
   const timeSlots = useMemo(() => {
+    const dateIso = DATES.find(d => d.full === selectedDate)?.iso ?? selectedDate;
     let slots: Array<{ time: string; label: string }>;
     if (bookingData?.availability?.length && selectedStaff !== 'any') {
       slots = bookingData.availability.map(s => ({ time: s.time, label: s.label || s.time }));
     } else {
-      slots = TIME_SLOTS.map(t => ({ time: t, label: t }));
+      slots = generateSlotsFromSalonHours(salon, artist, selectedDate, dateIso);
     }
-    const dateIso = DATES.find(d => d.full === selectedDate)?.iso ?? selectedDate;
     return filterFutureTimeSlots(slots, dateIso);
-  }, [bookingData?.availability, selectedStaff, selectedDate]);
+  }, [bookingData?.availability, selectedStaff, selectedDate, salon, artist]);
 
   const timeSlotsValid = useMemo(() => {
     if (!selectedTime) return true;
     return timeSlots.some(s => (s.label || s.time) === selectedTime);
   }, [selectedTime, timeSlots]);
 
+  /** §2: Closed days for date picker (disable chips). */
+  const closedDateIsos = useMemo(() => {
+    const set = new Set<string>();
+    DATES.forEach(d => {
+      if (isDateClosed(salon, artist, d.iso)) set.add(d.iso);
+    });
+    return set;
+  }, [salon, artist]);
+
   useEffect(() => {
     if (!timeSlotsValid && selectedTime) setSelectedTime(null);
   }, [timeSlotsValid, selectedTime]);
+
+  const slotHoldIdRef = useRef<string | null>(null);
+  slotHoldIdRef.current = slotHoldId;
+  /** §12: When staff or date changes, release hold and clear selected time. */
+  useEffect(() => {
+    const id = slotHoldIdRef.current;
+    if (id) {
+      releaseSlotHoldApi(id).catch(() => {});
+      setSlotHoldId(null);
+      setSelectedTime(null);
+    }
+  }, [selectedStaff, selectedDate]);
+
+  /** §12: Release slot hold when modal closes. */
+  useEffect(() => {
+    if (!isOpen && slotHoldId) {
+      releaseSlotHoldApi(slotHoldId).catch(() => {});
+      setSlotHoldId(null);
+    }
+  }, [isOpen, slotHoldId]);
 
   const salonLookbook = useMemo(() => {
     if (deferredLookbook?.length) {
@@ -269,6 +436,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
       setSelectedServices(preselectedServiceId ? [preselectedServiceId] : []);
       setServiceStyles({});
       setSelectedTime(null);
+      setSlotHoldId(null);
       setIsSuccess(false);
       setSelectedStaff('any');
       setGalleryViewService(null);
@@ -284,9 +452,15 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
   useEffect(() => {
     if (bookingData?.loadAvailability && selectedStaff !== 'any' && selectedDate) {
       const iso = DATES.find(d => d.full === selectedDate)?.iso ?? (selectedDate.includes('-') ? selectedDate : new Date(selectedDate).toISOString().slice(0, 10));
-      bookingData.loadAvailability(selectedStaff, iso);
+      const totalDuration = selectedServices
+        .map(id => bookingData?.services?.find(s => s.id === id)?.duration)
+        .filter((d): d is number => typeof d === 'number')
+        .reduce((sum, d) => sum + d, 0);
+      const durationMinutes = totalDuration > 0 ? totalDuration : 30;
+      const serviceId = selectedServices.length > 0 ? selectedServices[0] : undefined;
+      bookingData.loadAvailability(selectedStaff, iso, { durationMinutes, bufferMinutes: 0, serviceId });
     }
-  }, [bookingData?.loadAvailability, selectedStaff, selectedDate]);
+  }, [bookingData?.loadAvailability, bookingData?.services, selectedStaff, selectedDate, selectedServices]);
 
   useEffect(() => {
     if (submitInitiated && bookingData && !bookingData.submitLoading) {
@@ -382,7 +556,20 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
     setIsApplyingPromo(true);
     setPromoError(null);
     try {
-      const res: any = await validatePromoCodeApi(salonId, code, selectedServices);
+      const dateIso = DATES.find(d => d.full === selectedDate)?.iso ?? selectedDate;
+      const servicesList = selectedServices
+        .map(id => availableServices.find(s => s.id === id))
+        .filter(Boolean) as Array<{ id: string; price: number; category?: string }>;
+      const baseTotalVal = servicesList.reduce((sum, s) => sum + (s?.price ?? 0), 0);
+      const serviceCategories = [...new Set(servicesList.map(s => s?.category || 'General').filter(Boolean))];
+      const timeStr = selectedTime ? String(selectedTime).replace(/\s*AM|PM/i, '').trim() : undefined;
+      const res: any = await validatePromoCodeApi(salonId, code, {
+        serviceIds: selectedServices,
+        bookingDate: dateIso,
+        startTime: timeStr,
+        bookingTotal: baseTotalVal,
+        serviceCategories,
+      });
       const data: ValidatedPromo | undefined = res?.data?.data ?? res?.data;
       if (data) {
         setAppliedPromotion(data);
@@ -395,13 +582,63 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
     } finally {
       setIsApplyingPromo(false);
     }
-  }, [promoCode, salon?.id, artist?.salonId, selectedServices]);
+  }, [promoCode, salon?.id, artist?.salonId, selectedServices, selectedDate, selectedTime, availableServices]);
 
   const handleRemovePromo = useCallback(() => {
     setAppliedPromotion(null);
     setPromoCode('');
     setPromoError(null);
   }, []);
+
+  /** §12: On time slot click — create slot hold when staff is specific, else just set time. */
+  const handleSelectTime = useCallback(
+    (slot: { time: string; label: string }) => {
+      const dateIso = DATES.find(d => d.full === selectedDate)?.iso ?? selectedDate;
+      const totalDuration =
+        selectedServices
+          .map(id => bookingData?.services?.find(s => s.id === id)?.duration)
+          .filter((d): d is number => typeof d === 'number')
+          .reduce((sum, d) => sum + d, 0) || 30;
+      const salonId = salon?.id || artist?.salonId;
+
+      if (selectedStaff === 'any' || !salonId) {
+        setSelectedTime(slot.label);
+        return;
+      }
+
+      setSlotHoldLoading(true);
+      if (slotHoldId) {
+        releaseSlotHoldApi(slotHoldId).catch(() => {});
+        setSlotHoldId(null);
+      }
+      createSlotHoldApi({
+        salon_id: salonId,
+        staff_id: selectedStaff,
+        booking_date: dateIso,
+        start_time: slot.time,
+        end_time: addMinutes(slot.time, totalDuration),
+      })
+        .then((res: any) => {
+          const id = res?.data?.data?.id ?? res?.data?.id;
+          if (id) {
+            setSlotHoldId(id);
+            setSelectedTime(slot.label);
+          } else {
+            setSelectedTime(slot.label);
+          }
+        })
+        .catch((err: any) => {
+          const is409 = err?.response?.status === 409;
+          setSnackbar({
+            open: true,
+            message: is409 ? 'This slot is no longer available.' : err?.message || 'Could not reserve slot',
+            severity: 'error',
+          });
+        })
+        .finally(() => setSlotHoldLoading(false));
+    },
+    [selectedDate, selectedServices, selectedStaff, salon?.id, artist?.salonId, bookingData?.services, slotHoldId]
+  );
 
   const handleNext = () => {
     if (activeStep < 4) setActiveStep(prev => prev + 1);
@@ -434,6 +671,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
         selectedDate: dateIso,
         selectedTime: selectedTime!,
         styleImages: serviceStyles,
+        ...(slotHoldId && { slot_hold_id: slotHoldId }),
       });
       setSubmitInitiated(true);
     } else {
@@ -673,6 +911,23 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
               ))}
             </Stepper>
 
+            {bookingData?.bookingRules && (bookingData.bookingRules.min_notice_minutes != null || bookingData.bookingRules.max_advance_days != null || bookingData.bookingRules.advance_payment_rule === 'MUST') && (
+              <Box sx={{ py: 1, px: 0 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                  <Info size={12} />
+                  {bookingData.bookingRules.min_notice_minutes != null && bookingData.bookingRules.min_notice_minutes > 0 && (
+                    <>Book at least {bookingData.bookingRules.min_notice_minutes >= 60 ? `${bookingData.bookingRules.min_notice_minutes / 60} hour(s)` : `${bookingData.bookingRules.min_notice_minutes} min`} before</>
+                  )}
+                  {bookingData.bookingRules.min_notice_minutes != null && bookingData.bookingRules.max_advance_days != null && ' • '}
+                  {bookingData.bookingRules.max_advance_days != null && bookingData.bookingRules.max_advance_days > 0 && (
+                    <>Up to {bookingData.bookingRules.max_advance_days} days ahead</>
+                  )}
+                  {bookingData.bookingRules.advance_payment_rule === 'MUST' && (bookingData.bookingRules.min_notice_minutes != null || bookingData.bookingRules.max_advance_days != null) && ' • '}
+                  {bookingData.bookingRules.advance_payment_rule === 'MUST' && <>Advance payment required</>}
+                </Typography>
+              </Box>
+            )}
+
             <Box sx={{ minHeight: { xs: 'auto', sm: 450 } }}>
               {bookingData?.error && (
                 <Typography color="error" sx={{ mb: 2, fontSize: '13px' }}>{bookingData.error}</Typography>
@@ -827,12 +1082,14 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
                    <Box>
                     <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', letterSpacing: 2, mb: 1.5, display: 'block', fontSize: '11px' }}>SELECT DATE</Typography>
                     <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1, px: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
-                      {DATES.map((date) => (
-                        <Paper key={date.full} component="button" onClick={() => setSelectedDate(date.full)} elevation={0} sx={{ minWidth: 64, height: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '20px', border: '2px solid', borderColor: selectedDate === date.full ? 'secondary.main' : theme.palette.divider, bgcolor: selectedDate === date.full ? 'secondary.main' : 'background.paper', color: selectedDate === date.full ? 'primary.main' : 'text.primary', cursor: 'pointer', flexShrink: 0 }}>
+                      {DATES.map((date) => {
+                        const closed = closedDateIsos.has(date.iso);
+                        return (
+                        <Paper key={date.full} component="button" type="button" onClick={() => !closed && setSelectedDate(date.full)} disabled={closed} elevation={0} sx={{ minWidth: 64, height: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '20px', border: '2px solid', borderColor: selectedDate === date.full ? 'secondary.main' : theme.palette.divider, bgcolor: selectedDate === date.full ? 'secondary.main' : closed ? 'action.hover' : 'background.paper', color: selectedDate === date.full ? 'primary.main' : closed ? 'text.disabled' : 'text.primary', cursor: closed ? 'not-allowed' : 'pointer', flexShrink: 0, opacity: closed ? 0.7 : 1 }}>
                           <Typography sx={{ fontSize: '9px', fontWeight: 900, opacity: 0.8 }}>{date.dayName.toUpperCase()}</Typography>
                           <Typography sx={{ fontSize: '18px', fontWeight: 900 }}>{date.dayNum}</Typography>
                         </Paper>
-                      ))}
+                      );})}
                     </Box>
                   </Box>
                   <Box>
@@ -842,7 +1099,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
                         const displayTime = slot.label || slot.time;
                         return (
                         <Grid2 size={{ xs: 6 }} key={slot.time}>
-                          <Button variant="outlined" fullWidth onClick={() => setSelectedTime(displayTime)} sx={{ borderRadius: '12px', py: 1.5, fontWeight: 900, fontSize: '13px', borderColor: selectedTime === displayTime ? 'secondary.main' : 'divider', color: selectedTime === displayTime ? 'secondary.main' : 'text.primary', bgcolor: selectedTime === displayTime ? 'rgba(212, 175, 55, 0.04)' : 'transparent' }}>{displayTime}</Button>
+                          <Button variant="outlined" fullWidth onClick={() => handleSelectTime(slot)} disabled={slotHoldLoading} sx={{ borderRadius: '12px', py: 1.5, fontWeight: 900, fontSize: '13px', borderColor: selectedTime === displayTime ? 'secondary.main' : 'divider', color: selectedTime === displayTime ? 'secondary.main' : 'text.primary', bgcolor: selectedTime === displayTime ? 'rgba(212, 175, 55, 0.04)' : 'transparent' }}>{displayTime}</Button>
                         </Grid2>
                       );})}
                     </Grid2>
@@ -1000,102 +1257,128 @@ const BookingModal: React.FC<BookingModalProps> = ({ salon, artist, preselectedS
         </DialogActions>
       )}
 
-      {/* Lightbox Dialog remains as is */}
+      {/* Lightbox / mobile image view: fullscreen on mobile, image-first layout */}
       <Dialog
         open={Boolean(previewImage)}
         onClose={() => setPreviewImage(null)}
-        maxWidth="md"
-        fullWidth
+        fullScreen={isMobile}
+        maxWidth={isMobile ? false : 'md'}
+        fullWidth={!isMobile}
         TransitionComponent={Fade}
         PaperProps={{
-          sx: { 
-            borderRadius: isMobile ? 0 : '32px', 
-            bgcolor: 'background.paper', 
+          sx: {
+            borderRadius: isMobile ? 0 : '32px',
+            bgcolor: 'background.paper',
             backgroundImage: 'none',
             overflow: 'hidden',
-            maxHeight: '90vh'
-          }
+            ...(isMobile ? { display: 'flex', flexDirection: 'column', maxHeight: '100%' } : { maxHeight: '90vh' }),
+          },
         }}
       >
-        <Box sx={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <Stack 
-            direction="row" 
-            spacing={1} 
-            sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}
-          >
-            <IconButton 
-              onClick={() => { setIsZoomed(!isZoomed); setPanPosition({ x: 0, y: 0 }); }}
-              sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: '#fff' }}
+        <DialogContent
+          sx={{
+            p: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
+          <Stack direction="column" sx={{ flex: 1, minHeight: 0 }}>
+            {/* Image area: fills space on mobile, fixed aspect on desktop */}
+            <Box
+              sx={{
+                position: 'relative',
+                width: '100%',
+                flex: isMobile ? 1 : undefined,
+                minHeight: isMobile ? 0 : undefined,
+                aspectRatio: isMobile ? undefined : '4/5',
+                overflow: 'hidden',
+                bgcolor: '#000',
+                cursor: isZoomed ? 'grab' : 'zoom-in',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'none',
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleMouseUp}
             >
-              {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
-            </IconButton>
-            <IconButton 
-              onClick={() => setPreviewImage(null)}
-              sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: '#fff' }}
-            >
-              <X size={20} />
-            </IconButton>
-          </Stack>
-          
-          <Box 
-            sx={{ 
-              width: '100%', 
-              aspectRatio: '4/5', 
-              overflow: 'hidden', 
-              bgcolor: '#000',
-              cursor: isZoomed ? 'grab' : 'zoom-in',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              touchAction: 'none'
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleMouseUp}
-          >
-            <Box 
-              component="img" 
-              src={previewImage?.image} 
-              sx={{ 
-                width: '100%', 
-                height: '100%',
-                objectFit: 'contain',
-                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
-                transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${isZoomed ? 2.5 : 1})`,
-                pointerEvents: 'none'
-              }} 
-            />
-          </Box>
-          
-          <Box sx={{ p: { xs: 3, sm: 4 }, bgcolor: 'background.paper' }}>
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="overline" sx={{ color: 'secondary.main', fontWeight: 900, letterSpacing: 2 }}>{previewImage?.category.toUpperCase()} INSPIRATION</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: '-0.02em' }}>{previewImage?.name}</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600, mt: 0.5 }}>{previewImage?.vibe}</Typography>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}
+              >
+                <IconButton
+                  onClick={(e) => { e.stopPropagation(); setIsZoomed(!isZoomed); setPanPosition({ x: 0, y: 0 }); }}
+                  sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: '#fff' }}
+                >
+                  {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
+                </IconButton>
+                <IconButton
+                  onClick={(e) => { e.stopPropagation(); setPreviewImage(null); }}
+                  sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: '#fff' }}
+                >
+                  <X size={20} />
+                </IconButton>
+              </Stack>
+              <Box
+                component="img"
+                src={previewImage?.image}
+                alt={previewImage?.name}
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
+                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${isZoomed ? 2.5 : 1})`,
+                  pointerEvents: 'none',
+                }}
+              />
             </Box>
 
-            <Button 
-              fullWidth 
-              variant="contained" 
-              onClick={() => previewImage && previewingForServiceId && handleSetServiceStyle(previewingForServiceId, previewImage.image)}
-              sx={{ 
-                borderRadius: '100px', 
-                bgcolor: 'text.primary', 
-                color: 'background.paper', 
-                py: 2, 
-                fontWeight: 900,
-                letterSpacing: '0.1em'
+            {/* Caption + CTA: fixed at bottom on mobile */}
+            <Paper
+              elevation={0}
+              sx={{
+                flexShrink: 0,
+                p: { xs: 2.5, sm: 4 },
+                borderRadius: isMobile ? 0 : undefined,
+                borderTop: isMobile ? '1px solid' : undefined,
+                borderColor: 'divider',
               }}
             >
-              CHOOSE THIS AESTHETIC
-            </Button>
-          </Box>
-        </Box>
+              <Box sx={{ mb: 2.5 }}>
+                <Typography variant="overline" sx={{ color: 'secondary.main', fontWeight: 900, letterSpacing: 2, fontSize: '10px' }}>{previewImage?.category?.toUpperCase()} INSPIRATION</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: '-0.02em', fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>{previewImage?.name}</Typography>
+                {previewImage?.vibe && (
+                  <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600, mt: 0.5 }}>{previewImage.vibe}</Typography>
+                )}
+              </Box>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={() => previewImage && previewingForServiceId && handleSetServiceStyle(previewingForServiceId, previewImage.image)}
+                sx={{
+                  borderRadius: '100px',
+                  bgcolor: 'text.primary',
+                  color: 'background.paper',
+                  py: 1.5,
+                  fontWeight: 900,
+                  letterSpacing: '0.1em',
+                }}
+              >
+                CHOOSE THIS AESTHETIC
+              </Button>
+            </Paper>
+          </Stack>
+        </DialogContent>
       </Dialog>
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert onClose={() => setSnackbar((s) => ({ ...s, open: false }))} severity={snackbar.severity ?? 'error'} sx={{ width: '100%' }}>

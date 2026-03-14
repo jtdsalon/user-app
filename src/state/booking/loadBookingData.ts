@@ -67,9 +67,20 @@ export function* loadBookingDataSaga(
       ? data.lookbook.map(mapLookbook)
       : []
 
+    const bookingRules: T.BookingRules | null = data.bookingRules && typeof data.bookingRules === 'object'
+      ? {
+          min_notice_minutes: data.bookingRules.min_notice_minutes,
+          max_advance_days: data.bookingRules.max_advance_days,
+          free_cancellation_hours: data.bookingRules.free_cancellation_hours,
+          late_cancel_fee_type: data.bookingRules.late_cancel_fee_type,
+          advance_payment_rule: data.bookingRules.advance_payment_rule,
+          reschedule_hours: data.bookingRules.reschedule_hours,
+        }
+      : null
+
     // Defer state update to next tick so INP stays low (UI can paint before heavy re-render)
     yield delay(0)
-    yield put({ type: T.LOAD_BOOKING_DATA_SUCCESS, payload: { services, staff, lookbook } })
+    yield put({ type: T.LOAD_BOOKING_DATA_SUCCESS, payload: { services, staff, lookbook, bookingRules } })
   } catch (err: any) {
     const msg = err?.errorMessage || err?.message || 'Failed to load booking data'
     yield put({ type: T.LOAD_BOOKING_DATA_ERROR, payload: msg })

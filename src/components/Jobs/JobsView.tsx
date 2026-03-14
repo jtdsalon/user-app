@@ -183,34 +183,47 @@ const JobsView: React.FC = () => {
                     <AccordionSummary
                       expandIcon={<ChevronDown size={22} />}
                       sx={{
-                        px: { xs: 3, md: 5 },
+                        px: { xs: 2, sm: 3, md: 5 },
                         py: { xs: 2, md: 3 },
-                        '& .MuiAccordionSummary-content': { margin: 0 }
+                        alignItems: { xs: 'flex-start', sm: 'center' },
+                        minHeight: { xs: 'auto', md: 64 },
+                        '& .MuiAccordionSummary-content': {
+                          margin: 0,
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden'
+                        }
                       }}
                     >
-                      <Grid2 container spacing={2} alignItems="center">
+                      <Grid2 container spacing={1.5} alignItems="center" sx={{ width: '100%', minWidth: 0 }}>
                         <Grid2 size={{ xs: 12, md: 8 }}>
-                          <Stack direction="row" spacing={3} alignItems="center">
+                          <Stack direction="row" spacing={{ xs: 1.5, sm: 3 }} alignItems="flex-start" sx={{ minWidth: 0 }}>
                             <Box
                               sx={{
                                 p: 2,
                                 bgcolor: 'action.hover',
                                 borderRadius: '20px',
                                 color: 'secondary.main',
-                                display: { xs: 'none', sm: 'flex' }
+                                display: { xs: 'none', sm: 'flex' },
+                                flexShrink: 0
                               }}
                             >
                               <Briefcase size={28} />
                             </Box>
-                            <Box>
-                              <Stack direction="row" spacing={2} alignItems="center">
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ gap: 0.5 }}>
                                 <Typography
                                   variant="h5"
                                   sx={{
                                     fontWeight: 900,
                                     letterSpacing: '-0.02em',
-                                    fontSize: { xs: '1.2rem', md: '1.5rem' },
-                                    mb: 0.5
+                                    fontSize: { xs: '1rem', sm: '1.2rem', md: '1.5rem' },
+                                    mb: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical'
                                   }}
                                 >
                                   {job.title}
@@ -226,19 +239,29 @@ const JobsView: React.FC = () => {
                                       fontSize: '9px',
                                       fontWeight: 900,
                                       letterSpacing: '0.1em',
-                                      borderRadius: '6px'
+                                      borderRadius: '6px',
+                                      flexShrink: 0
                                     }}
                                   />
                                 )}
                               </Stack>
-                              <Stack direction="row" spacing={2} alignItems="center">
+                              <Stack
+                                direction={{ xs: 'column', sm: 'row' }}
+                                spacing={{ xs: 0.25, sm: 2 }}
+                                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                                sx={{ mt: 0.5 }}
+                              >
                                 <Typography
                                   onClick={job.salonId ? () => handleNavigateToSalon(job.salonId!) : undefined}
                                   sx={{
                                     color: 'secondary.main',
                                     fontWeight: 800,
-                                    fontSize: '14px',
+                                    fontSize: { xs: '12px', sm: '14px' },
                                     letterSpacing: '0.05em',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: '100%',
                                     ...(job.salonId && {
                                       cursor: 'pointer',
                                       '&:hover': { color: 'secondary.dark', opacity: 0.9 }
@@ -247,8 +270,7 @@ const JobsView: React.FC = () => {
                                 >
                                   {job.salonName.toUpperCase()}
                                 </Typography>
-                                <Divider orientation="vertical" flexItem sx={{ height: 12, my: 'auto', bgcolor: 'divider' }} />
-                                <Typography sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '13px' }}>
+                                <Typography sx={{ color: 'text.secondary', fontWeight: 600, fontSize: { xs: '11px', sm: '13px' } }}>
                                   {JOBS_PROPERTIES.postedPrefix} {job.postedAt}
                                 </Typography>
                               </Stack>
@@ -260,8 +282,8 @@ const JobsView: React.FC = () => {
                             direction="row"
                             spacing={1}
                             flexWrap="wrap"
-                            justifyContent={{ xs: 'flex-start', md: 'flex-end' }}
-                            sx={{ mt: { xs: 2, md: 0 } }}
+                            useFlexGap
+                            sx={{ gap: 0.5, mt: { xs: 1, md: 0 }, justifyContent: { xs: 'flex-start', md: 'flex-end' } }}
                           >
                             {(job.tags || []).map(tag => (
                               <Chip
@@ -270,36 +292,42 @@ const JobsView: React.FC = () => {
                                 size="small"
                                 variant="outlined"
                                 sx={{
-                                  fontSize: '10px',
-                                  height: 26,
+                                  fontSize: '9px',
+                                  height: 22,
                                   fontWeight: 900,
                                   borderColor: 'divider',
                                   color: 'text.secondary',
-                                  letterSpacing: '0.1em',
-                                  borderRadius: '8px'
+                                  letterSpacing: '0.05em',
+                                  borderRadius: '6px'
                                 }}
                               />
                             ))}
                           </Stack>
                         </Grid2>
 
-                        <Grid2 size={{ xs: 12 }} sx={{ mt: 2 }}>
-                          <Stack direction="row" spacing={{ xs: 2, md: 4 }} sx={{ color: 'text.secondary' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <MapPin size={16} color={theme.palette.secondary.main} />
-                              <Typography sx={{ fontWeight: 700, fontSize: '13px' }}>{job.location}</Typography>
+                        <Grid2 size={{ xs: 12 }} sx={{ mt: 1.5 }}>
+                          <Stack
+                            direction="row"
+                            spacing={{ xs: 1.5, sm: 2, md: 4 }}
+                            flexWrap="wrap"
+                            useFlexGap
+                            sx={{ gap: { xs: 1, sm: 2 }, color: 'text.secondary' }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                              <MapPin size={14} style={{ flexShrink: 0 }} color={theme.palette.secondary.main} />
+                              <Typography sx={{ fontWeight: 700, fontSize: { xs: '11px', sm: '13px' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.location}</Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography component="span" sx={{ fontWeight: 800, fontSize: '12px', color: 'secondary.main', letterSpacing: '0.02em' }}>Rs</Typography>
-                              <Typography sx={{ fontWeight: 700, fontSize: '13px' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                              <Typography component="span" sx={{ fontWeight: 800, fontSize: '11px', color: 'secondary.main', letterSpacing: '0.02em', flexShrink: 0 }}>Rs</Typography>
+                              <Typography sx={{ fontWeight: 700, fontSize: { xs: '11px', sm: '13px' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {typeof job.salary === 'string' && job.salary.includes('$')
                                   ? 'LKR ' + job.salary.replace(/\$/g, '').replace(/\s+/g, ' ').trim()
                                   : job.salary}
                               </Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Clock size={16} color={theme.palette.secondary.main} />
-                              <Typography sx={{ fontWeight: 700, fontSize: '13px' }}>{job.type}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                              <Clock size={14} color={theme.palette.secondary.main} />
+                              <Typography sx={{ fontWeight: 700, fontSize: { xs: '11px', sm: '13px' } }}>{job.type}</Typography>
                             </Box>
                           </Stack>
                         </Grid2>

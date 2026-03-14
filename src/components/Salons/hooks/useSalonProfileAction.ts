@@ -20,6 +20,14 @@ export function useSalonProfileAction(salonId: string) {
     dispatch(getSalonDetail(salonId) as any)
   }, [salonId, dispatch])
 
+  // Realtime: when user returns to tab (e.g. from salon-app after adding staff), refetch salon detail so staff list updates.
+  useEffect(() => {
+    if (!salonId) return
+    const onFocus = () => dispatch(getSalonDetail(salonId) as any)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [salonId, dispatch])
+
   const refetchReviews = useCallback(() => {
     if (salonId) dispatch(getSalonDetail(salonId) as any)
   }, [salonId, dispatch])

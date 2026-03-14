@@ -402,7 +402,7 @@ export const FEED_POSTS: FeedPost[] = [
     user: {
       id: 'salon-1',
       name: 'Luminous Beauty Studio',
-      avatar: 'https://images.unsplash.com/photo-1562110503-3810c687a155?w=100&h=100&fit=crop'
+      avatar: ''
     },
     content: 'Golden hour glow-up ✨ This transformation speaks for itself. Our signature glow facial leaves you absolutely radiant!',
     image: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600&h=600&fit=crop',
@@ -418,7 +418,7 @@ export const FEED_POSTS: FeedPost[] = [
     user: {
       id: 'salon-1',
       name: 'Luminous Beauty Studio',
-      avatar: 'https://images.unsplash.com/photo-1562110503-3810c687a155?w=100&h=100&fit=crop'
+      avatar: ''
     },
     content: 'New arrival: Our exclusive diamond-infused serum is finally here! Experience luxury skincare like never before 💎',
     image: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=600&h=600&fit=crop',
@@ -434,7 +434,7 @@ export const FEED_POSTS: FeedPost[] = [
     user: {
       id: 'salon-3',
       name: 'Elegant Transformations',
-      avatar: 'https://images.unsplash.com/photo-1544717278-ca5e3cff26b5?w=100&h=100&fit=crop'
+      avatar: ''
     },
     content: 'Before & After magic ✨ Our master colorist crafted this custom shade for a bridal transformation. Pure artistry!',
     images: [
@@ -453,7 +453,7 @@ export const FEED_POSTS: FeedPost[] = [
     user: {
       id: 'salon-2',
       name: 'Zenith Salon & Wellness',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
+      avatar: ''
     },
     content: 'Zen vibes 🧘‍♀️ Our new wellness retreat package is designed for ultimate relaxation. Book your escape today!',
     image: 'https://images.unsplash.com/photo-1556136212-01a14ee91fcf?w=600&h=600&fit=crop',
@@ -469,7 +469,7 @@ export const FEED_POSTS: FeedPost[] = [
     user: {
       id: 'salon-1',
       name: 'Luminous Beauty Studio',
-      avatar: 'https://images.unsplash.com/photo-1562110503-3810c687a155?w=100&h=100&fit=crop'
+      avatar: ''
     },
     content: 'Meet our artisan team! Skilled, passionate, and dedicated to your beauty metamorphosis. Your glow-up starts here 🌟',
     image: 'https://images.unsplash.com/photo-1516214104703-d870798883c5?w=600&h=600&fit=crop',
