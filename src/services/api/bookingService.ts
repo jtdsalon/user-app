@@ -94,6 +94,7 @@ export interface MyBookingItem {
     image_url: string | null
     cover_image_url: string | null
   }
+  staff?: { display_name?: string | null } | null
 }
 
 export interface MyBookingsResponse {
