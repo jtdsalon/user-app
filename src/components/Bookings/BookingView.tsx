@@ -49,17 +49,24 @@ import { getServerOrigin } from '@/config/api';
 
 function formatTime(isoTime: string | Date): string {
   if (isoTime == null) return '—';
-  const str = typeof isoTime === 'string' ? isoTime : String(isoTime);
+  const str = typeof isoTime === 'string' ? isoTime.trim() : String(isoTime);
   const d = new Date(str);
   if (!isNaN(d.getTime())) {
-    const h = d.getHours();
-    const m = d.getMinutes();
+    const isTimeOnly = str.includes('1970-01-01') || (d.getUTCDate() === 1 && d.getUTCMonth() === 0 && d.getUTCFullYear() === 1970);
+    const h = isTimeOnly ? d.getUTCHours() : d.getHours();
+    const m = isTimeOnly ? d.getUTCMinutes() : d.getMinutes();
     const ampm = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 || 12;
     return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
   }
-  const match = str.match(/(\d{1,2}):(\d{2})/);
-  if (match) return str;
+  const match = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  }
   return '—';
 }
 
@@ -83,15 +90,21 @@ function apiBookingToAppointment(b: MyBookingItem): Appointment {
   const serviceName = b.service?.name || 'Service';
   const bookingDate = b.booking_date;
   const dateStr = formatDate(bookingDate);
-  const timeStr = formatTime(b.start_time as any);
+  const rawStart = b.start_time;
+  const timeStr =
+    typeof rawStart === 'string' && /^\d{1,2}:\d{2}/.test(rawStart)
+      ? formatTime(rawStart)
+      : formatTime(rawStart as any);
   const timestamp = b.created_at ? new Date(b.created_at).getTime() : new Date(bookingDate).getTime();
+  const staffName =
+    (b.staff?.display_name && b.staff.display_name.trim()) || '—';
   return {
     id: b.id,
     salonId: b.salon_id,
     salonName: salon?.name || 'Salon',
     salonImage,
     serviceNames: [serviceName],
-    staffName: '—',
+    staffName,
     date: dateStr,
     time: timeStr,
     totalPrice: b.service?.price ?? 0,
@@ -167,10 +180,11 @@ const BookingView: React.FC = () => {
 
   const filteredAppointments = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return appointments.filter(a => 
+    const filtered = appointments.filter(a =>
       (a.salonName || '').toLowerCase().includes(q) ||
       (a.serviceNames || []).some((s: string) => String(s).toLowerCase().includes(q))
     );
+    return [...filtered].sort((a, b) => b.timestamp - a.timestamp);
   }, [appointments, searchQuery]);
 
   const notesMap = useMemo(() => {
@@ -515,8 +529,8 @@ const BookingView: React.FC = () => {
                         </Typography>
                       </Box>
 
-                      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <Stack direction="row" spacing={1}>
+                      <Box sx={{ mt: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2 }}>
+                         <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}>
                             {[1, 2].map(i => (
                                <Box 
                                  key={i} 
@@ -532,14 +546,13 @@ const BookingView: React.FC = () => {
                                </Box>
                             ))}
                          </Stack>
-                         
-                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ flex: { sm: '0 0 auto' }, justifyContent: { xs: 'flex-start', sm: 'flex-end' }, gap: 1 }}>
                             {canReschedule(appt) && (
                               <Button
                                 variant="outlined"
                                 size="small"
                                 onClick={() => handleRescheduleClick(appt)}
-                                sx={{ fontSize: '10px', fontWeight: 900, borderColor: 'secondary.main', color: 'secondary.main' }}
+                                sx={{ fontSize: '10px', fontWeight: 900, borderColor: 'secondary.main', color: 'secondary.main', minWidth: 'max-content' }}
                               >
                                 RESCHEDULE
                               </Button>
@@ -549,16 +562,17 @@ const BookingView: React.FC = () => {
                                 variant="outlined"
                                 size="small"
                                 onClick={() => handleCancelClick(appt)}
-                                sx={{ fontSize: '10px', fontWeight: 900, borderColor: 'error.main', color: 'error.main' }}
+                                sx={{ fontSize: '10px', fontWeight: 900, borderColor: 'error.main', color: 'error.main', minWidth: 'max-content' }}
                               >
                                 CANCEL
                               </Button>
                             )}
                             <Button 
                               variant="text" 
+                              size="small"
                               endIcon={<ChevronRight size={14} />}
                               onClick={() => setDetailAppointment(appt)}
-                              sx={{ fontSize: '10px', fontWeight: 900, color: 'text.secondary' }}
+                              sx={{ fontSize: '10px', fontWeight: 900, color: 'text.secondary', minWidth: 'max-content' }}
                             >
                               VIEW DETAILS
                             </Button>

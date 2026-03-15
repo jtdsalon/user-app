@@ -635,7 +635,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, onViewChange, onSignIn, on
             GLOW<Box component="span" sx={{ color: 'secondary.main' }}>BEAUTY</Box>
           </Typography>
           <List>
-            {desktopNavItems.map((item) => (
+            {[...desktopNavItems, { label: 'My Profile', view: 'profile' as ViewType, icon: <User size={18} /> }].map((item) => (
               <ListItem key={item.view} disablePadding sx={{ mb: 1 }}>
                 <ListItemButton
                   onClick={() => handleNavClick(item.view)}
