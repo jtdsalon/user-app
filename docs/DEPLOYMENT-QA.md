@@ -113,3 +113,5 @@ pm2 save
 | `.env.production` | When running with `--mode production` |
 
 Ensure **`VITE_APP_BASE_URL`** in `.env.qa` points to your QA API (e.g. `http://129.212.226.33/api`).
+
+**Realtime notifications:** For live notifications to work on the server, the backend and nginx must be configured as in `salon-backed/docs/DEPLOYMENT.md` (nginx `location /socket.io/` and backend `CORS_ORIGIN`).
